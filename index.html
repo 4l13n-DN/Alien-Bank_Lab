@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AlienProbe · 0xAlienSec — Análisis dinámico</title>
+<style>
+  /* ===== Sistema de diseño (estilo herramienta pro: Burp/MobSF/Postman) ===== */
+  :root{
+    /* Paleta: fondo oscuro neutro + acento verde operacional (no neón saturado) */
+    --bg:#0d1117;            /* fondo app (GitHub dark) */
+    --bg-1:#11161d;          /* superficies */
+    --bg-2:#161c26;          /* inputs/cards */
+    --bg-3:#1c232e;          /* hover */
+    --line:#21262d;          /* bordes */
+    --line-2:#2d333b;        /* bordes fuertes */
+    --text:#e6edf3;          /* texto principal */
+    --text-2:#9198a1;        /* texto secundario */
+    --text-3:#6e7681;        /* texto tenue/placeholder */
+    --accent:#3fb950;        /* verde operacional */
+    --accent-2:#2ea043;      /* verde hover */
+    --accent-dim:#1a3a23;    /* verde fondo suave */
+    --danger:#f85149;
+    --warn:#d29922;
+    --info:#58a6ff;
+    --shadow:0 6px 18px rgba(0,0,0,.35);
+    --shadow-sm:0 2px 6px rgba(0,0,0,.25);
+    --radius:6px;
+    --radius-sm:4px;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --space:8px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:var(--sans);font-size:14px;-webkit-font-smoothing:antialiased}
+  ::selection{background:var(--accent-dim);color:var(--text)}
+  /* Scrollbars finas */
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#2d333b;border-radius:6px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:#3d444d}
+  a{color:var(--info);text-decoration:none}
+  a:hover{text-decoration:underline}
+  button{font-family:inherit;cursor:pointer;border-radius:var(--radius-sm);transition:.12s}
+  input,select,textarea{font-family:var(--mono)}
+
+  /* ===== Layout ===== */
+  .app{display:grid;grid-template-rows:48px 1fr;height:100vh}
+  .main{display:grid;grid-template-columns:300px 1fr;overflow:hidden}
+
+  /* ===== Topbar ===== */
+  header{display:flex;align-items:center;gap:12px;padding:0 16px;
+    background:var(--bg-1);border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:center;gap:8px}
+  .brand .mark{width:24px;height:24px;border-radius:5px;background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:flex;align-items:center;justify-content:center;color:#0d1117;font-weight:800;font-size:14px;font-family:var(--mono)}
+  .brand .name{font-weight:600;letter-spacing:.2px;color:var(--text);font-size:15px}
+  .brand .ver{font-size:11px;color:var(--text-3);font-family:var(--mono);margin-left:3px}
+  .statusbar{display:flex;gap:6px;align-items:center;margin-left:auto}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border:1px solid var(--line);
+    border-radius:20px;background:var(--bg-2);color:var(--text-2);font-size:12px;white-space:nowrap;font-family:var(--mono)}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--text-3)}
+  .chip.ok{color:var(--accent);border-color:var(--accent-dim);background:rgba(63,185,80,.06)}
+  .chip.ok .dot{background:var(--accent)}
+  .chip.bad{color:var(--danger);border-color:#5d2020;background:rgba(248,81,73,.06)}
+  .chip.bad .dot{background:var(--danger)}
+  .chip.warn{color:var(--warn);border-color:#5a4a1f;background:rgba(210,153,34,.06)}
+  .chip.warn .dot{background:var(--warn)}
+  .chip.info{color:var(--info);border-color:#1f4480;background:rgba(88,166,255,.06)}
+  .chip.info .dot{background:var(--info)}
+
+  /* ===== Sidebar ===== */
+  aside{background:var(--bg-1);border-right:1px solid var(--line);overflow-y:auto;padding:14px 14px 28px}
+  .section{margin-bottom:20px}
+  .section .sh{display:flex;align-items:center;gap:7px;margin:0 0 10px;
+    font-size:12px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px}
+  .section .sh .ico{width:15px;height:15px;opacity:.7;font-size:14px}
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:12px;color:var(--text-2);margin-bottom:4px;font-weight:500}
+  input,select,textarea{width:100%;background:var(--bg-2);border:1px solid var(--line);
+    color:var(--text);padding:7px 10px;border-radius:var(--radius-sm);font-size:13px;transition:.1s}
+  input::placeholder{color:var(--text-3)}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent-2);
+    box-shadow:0 0 0 3px rgba(63,185,80,.12);background:var(--bg-3)}
+  select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%236e7681' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+  /* Botones */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 13px;
+    background:var(--bg-3);color:var(--text);border:1px solid var(--line-2);border-radius:var(--radius-sm);
+    font-size:13px;font-weight:500;line-height:1.4}
+  .btn:hover{background:#30363d;border-color:#3d444d}
+  .btn:active{transform:translateY(1px)}
+  .btn.small{padding:5px 10px;font-size:12px}
+  .btn.primary{background:var(--accent-2);color:#0d1117;border-color:var(--accent-2);font-weight:600}
+  .btn.primary:hover{background:var(--accent);border-color:var(--accent)}
+  .btn.ghost{background:transparent;color:var(--text-2);border-color:var(--line)}
+  .btn.ghost:hover{background:var(--bg-2);color:var(--text);border-color:var(--line-2)}
+  .btn.danger{background:rgba(248,81,73,.1);color:var(--danger);border-color:#5d2020}
+  .btn.danger:hover{background:rgba(248,81,73,.18)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;pointer-events:none}
+  .btnrow{display:flex;gap:6px;flex-wrap:wrap}
+  .btn.wide{width:100%}
+
+  /* Listas (devices/packages) */
+  .list{display:flex;flex-direction:column;gap:3px}
+  .list-row{padding:9px 11px;border-radius:var(--radius-sm);cursor:pointer;
+    border:1px solid transparent;display:flex;flex-direction:column;gap:3px;transition:.1s}
+  .list-row:hover{background:var(--bg-2);border-color:var(--line)}
+  .list-row.active{background:rgba(63,185,80,.08);border-color:var(--accent-dim)}
+  .list-row.active .lr-title{color:var(--accent)}
+  .lr-title{font-family:var(--mono);font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;word-break:break-all}
+  .lr-sub{font-size:11px;color:var(--text-3);font-family:var(--mono);display:flex;gap:8px;flex-wrap:wrap}
+  .lr-pick{margin-left:auto;color:var(--accent,#4ade80);opacity:.85;font-style:italic}
+  .list-row:hover .lr-pick{opacity:1;text-decoration:underline}
+  .lr-state{font-size:10px;padding:1px 6px;border-radius:3px;background:var(--bg-3);color:var(--text-2);font-family:var(--mono)}
+  .lr-state.device{background:var(--accent-dim);color:var(--accent)}
+  .pill{font-size:10px;padding:2px 7px;border-radius:10px;background:var(--accent-dim);
+    color:var(--accent);font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+
+  /* ===== Tabs ===== */
+  .tabs{display:flex;gap:0;padding:0 14px;background:var(--bg-1);border-bottom:1px solid var(--line)}
+  .tab{padding:11px 16px;color:var(--text-2);border:none;background:none;border-bottom:2px solid transparent;
+    cursor:pointer;font-size:13px;font-weight:500;letter-spacing:.2px;display:flex;align-items:center;gap:7px}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--text);border-bottom-color:var(--accent);background:linear-gradient(180deg,transparent,rgba(63,185,80,.04))}
+  .tab .badge{font-size:10px;padding:1px 7px;border-radius:9px;background:var(--bg-3);color:var(--text-2);font-family:var(--mono)}
+  .tab.active .badge{background:var(--accent-dim);color:var(--accent)}
+
+  /* ===== Content ===== */
+  .content{overflow-y:auto;padding:20px 22px;background:var(--bg)}
+  .panel{background:var(--bg-1);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px;margin-bottom:16px;box-shadow:var(--shadow-sm)}
+  .panel h2{margin:0 0 12px;font-size:15px;font-weight:600;color:var(--text);letter-spacing:.2px;
+    display:flex;align-items:center;gap:8px}
+  .panel h2 .accent{color:var(--accent)}
+  .panel .lead{color:var(--text-2);font-size:13px;line-height:1.55;margin:0 0 14px}
+  .panel .lead code{background:var(--bg-3);padding:2px 6px;border-radius:3px;font-size:12px;color:var(--accent)}
+  .panel-actions{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+
+  /* Empty state */
+  .empty{text-align:center;padding:32px 12px;color:var(--text-3)}
+  .empty .em-ico{font-size:30px;margin-bottom:10px;opacity:.4}
+  .empty .em-t{color:var(--text-2);font-size:14px;margin-bottom:5px;font-weight:500}
+  .empty .em-s{font-size:12px;line-height:1.55}
+
+  /* ===== Presets grid ===== */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  .preset{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--radius);padding:14px;
+    transition:.12s;cursor:pointer;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden}
+  .preset::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent;transition:.12s}
+  .preset:hover{border-color:var(--line-2);background:var(--bg-3);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+  .preset:hover::before{background:var(--accent)}
+  .preset .ttl{color:var(--text);font-size:14px;font-weight:600;line-height:1.3}
+  .preset .desc{color:var(--text-2);font-size:12px;line-height:1.5}
+  .preset .ft{display:flex;align-items:center;gap:6px;margin-top:auto}
+  .preset .masvs{font-size:10px;color:var(--accent);border:1px solid var(--accent-dim);border-radius:3px;
+    padding:2px 7px;font-family:var(--mono);letter-spacing:.3px}
+  .preset .type{font-size:10px;color:var(--text-3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px}
+  .preset.busy{opacity:.5;pointer-events:none}
+  .preset.featured{border-color:var(--accent-dim);background:linear-gradient(135deg,rgba(63,185,80,.05),var(--bg-2))}
+  .preset.featured::before{background:var(--accent)}
+  .preset.featured .ttl{color:var(--accent)}
+
+  /* ===== Console ===== */
+  .console{background:#010409;border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px;
+    height:380px;overflow-y:auto;font-family:var(--mono);font-size:13px;line-height:1.55;
+    white-space:pre-wrap;word-break:break-all}
+  .console .ln{color:var(--text)}
+  .console .ln.err{color:var(--danger)}
+  .console .ln.warn{color:var(--warn)}
+  .console .ln.ok{color:var(--accent)}
+  .console .ln.meta{color:var(--text-3);font-style:italic}
+
+  /* ===== Tables ===== */
+  table{width:100%;border-collapse:collapse;font-size:13px;font-family:var(--mono)}
+  th,td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--text-2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.6px;
+    background:var(--bg-2);position:sticky;top:0}
+  tbody tr:hover{background:var(--bg-2)}
+  tr.exported{background:rgba(210,153,34,.05)}
+  tr.exported td:first-child{color:var(--warn);font-weight:600}
+  .secret{background:rgba(248,81,73,.12);color:var(--danger);padding:2px 7px;border-radius:3px;
+    font-weight:600;border:1px solid rgba(248,81,73,.2)}
+  .badge-exported{display:inline-block;font-size:10px;padding:2px 8px;border-radius:3px;
+    background:rgba(210,153,34,.15);color:var(--warn);font-weight:600;border:1px solid rgba(210,153,34,.3)}
+  .badge-yes{background:rgba(248,81,73,.15);color:var(--danger);border-color:rgba(248,81,73,.3)}
+  .badge-no{color:var(--text-3);background:var(--bg-2)}
+
+  /* ===== Toasts ===== */
+  .toasts{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:999;max-width:380px}
+  .toast{background:var(--bg-1);border:1px solid var(--line);border-left:3px solid var(--accent);
+    padding:11px 15px;border-radius:var(--radius);font-size:13px;box-shadow:var(--shadow);
+    animation:slideIn .18s ease;display:flex;align-items:flex-start;gap:9px;
+    white-space:pre-wrap;word-break:break-word;max-height:240px;overflow:auto}
+  .toast.err{border-left-color:var(--danger)}
+  .toast.warn{border-left-color:var(--warn)}
+  .toast.ok{border-left-color:var(--accent)}
+  .toast .ti{font-size:15px;flex-shrink:0;margin-top:1px}
+  .toast .msg{font-family:var(--mono);font-size:12px;line-height:1.45}
+  .toast .msg b{color:var(--text-1)}
+  @keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ===== Intro didáctica por pestaña (plataforma de aprendizaje) ===== */
+  .tab-intro{background:linear-gradient(135deg,rgba(63,185,80,.06),var(--bg-1));border:1px solid var(--line);
+    border-left:3px solid var(--accent);border-radius:var(--radius);padding:12px 15px;margin-bottom:16px;
+    animation:fadeInUp .25s ease}
+  .tab-intro h3{margin:0 0 5px;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px;font-weight:600}
+  .tab-intro h3 .ti-ico{font-size:16px}
+  .tab-intro .ti-what{color:var(--text-2);font-size:13px;line-height:1.55;margin:0 0 9px}
+  .tab-intro .ti-grid{display:flex;gap:10px;flex-wrap:wrap}
+  .tab-intro .ti-card{flex:1;min-width:190px;background:var(--bg-2);border:1px solid var(--line);
+    border-radius:var(--radius-sm);padding:9px 11px}
+  .tab-intro .ti-card .k{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);font-weight:700;margin-bottom:3px}
+  .tab-intro .ti-card .v{font-size:12.5px;color:var(--text-2);line-height:1.5}
+  .tab-intro .ti-close{margin-left:auto;color:var(--text-3);cursor:pointer;font-size:11px;background:none;
+    border:1px solid var(--line);border-radius:var(--radius-sm);padding:2px 8px}
+  .tab-intro .ti-close:hover{color:var(--text);border-color:var(--line-2)}
+
+  /* ===== Animaciones sutiles (no interrumpen el funcionamiento) ===== */
+  .tabpane:not(.hidden){animation:fadeInUp .22s ease}
+  .panel{transition:border-color .15s ease, box-shadow .15s ease}
+  .panel:hover{border-color:var(--line-2)}
+  .chip{transition:background .15s, color .15s, border-color .15s}
+  .list-row{transition:background .12s, border-color .12s, transform .12s}
+  .list-row:hover{transform:translateX(2px)}
+  .tab{transition:color .15s ease, border-color .18s ease, background .15s ease}
+  .btn{transition:background .13s ease, border-color .13s ease, transform .08s ease}
+
+  /* ===== Misc ===== */
+  .banner{display:flex;gap:11px;align-items:flex-start;background:var(--bg-2);
+    border:1px solid var(--line-2);border-left:3px solid var(--warn);
+    color:var(--text-2);padding:12px 16px;border-radius:var(--radius);font-size:13px;line-height:1.55;margin-bottom:16px}
+  .banner strong{color:var(--warn)}
+  .row{display:flex;gap:8px;align-items:center}
+  .row > *{flex:0 0 auto}
+  .grow{flex:1 1 auto;min-width:0}
+  .spinner{display:inline-block;width:13px;height:13px;border:2px solid var(--line-2);
+    border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  pre{white-space:pre-wrap;word-break:break-all;margin:0;font-family:var(--mono);font-size:13px;line-height:1.55}
+  .imgwrap{background:#010409;border:1px solid var(--line);border-radius:var(--radius);padding:8px;text-align:center}
+  .imgwrap img{max-width:100%;max-height:480px;border-radius:var(--radius-sm);box-shadow:var(--shadow)}
+  details{margin-bottom:7px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--bg-2)}
+  summary{cursor:pointer;color:var(--text);font-size:13px;padding:10px 14px;font-family:var(--mono);
+    display:flex;align-items:center;gap:7px;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸";color:var(--text-3);transition:.15s;font-size:11px}
+  details[open] summary::before{transform:rotate(90deg)}
+  summary:hover{background:var(--bg-3)}
+  details .dbody{padding:0 14px 12px}
+  .kbd{background:var(--bg-3);border:1px solid var(--line-2);border-bottom-width:2px;border-radius:3px;padding:2px 6px;font-size:12px;font-family:var(--mono)}
+  .helpbox{font-size:12px;line-height:1.6;color:var(--text);margin-bottom:12px;padding:11px 14px;
+    border-left:2px solid var(--accent);background:var(--bg-2);border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+  .cli-box{display:flex;gap:6px;align-items:center;background:#010409;border:1px solid var(--line);
+    border-radius:var(--radius-sm);padding:5px 7px}
+  .cli-box input{background:transparent;border:none;color:var(--accent);font-size:12px;padding:3px 5px;font-family:var(--mono)}
+  .cli-box input:focus{box-shadow:none}
+  .hidden{display:none!important}
+  .monospace{font-family:var(--mono)}
+  .text-muted{color:var(--text-2)}
+  .text-tenue{color:var(--text-3)}
+  .mt-2{margin-top:10px}.mt-3{margin-top:14px}.mb-2{margin-bottom:10px}.mb-3{margin-bottom:14px}
+
+  /* ===== Ayuda contextual (v3.2) ===== */
+  /* Icono "?" que abre popover con la ayuda larga */
+  .qicon{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+    border-radius:50%;border:1px solid var(--line-2);color:var(--text-2);font-size:11px;font-weight:700;
+    cursor:help;font-family:var(--sans);background:var(--bg-3);transition:.12s;vertical-align:middle;
+    margin-left:5px;line-height:1}
+  .qicon:hover{border-color:var(--accent);color:var(--accent);border-color:var(--accent-dim)}
+  .popover{position:absolute;background:var(--bg-1);border:1px solid var(--line-2);border-radius:var(--radius);
+    padding:13px 16px;max-width:340px;font-size:12px;line-height:1.55;color:var(--text);
+    box-shadow:var(--shadow);z-index:50;font-family:var(--sans);white-space:normal}
+  .popover .ptitle{color:var(--accent);font-weight:600;margin-bottom:5px;font-size:13px}
+  .popover .ptext{color:var(--text-2)}
+  .popover code{background:var(--bg-3);padding:2px 6px;border-radius:3px;color:var(--accent);font-size:11px}
+  /* Tooltip nativo reforzado para [data-tip] (lo dejamos al title nativo) */
+  [data-tip]{cursor:help;position:relative}
+  [data-tip]::after{content:attr(data-tip);position:absolute;left:50%;bottom:calc(100% + 6px);
+    transform:translateX(-50%);background:var(--bg-1);color:var(--text);border:1px solid var(--line-2);
+    border-radius:var(--radius-sm);padding:5px 9px;font-size:11px;font-family:var(--sans);font-weight:500;
+    white-space:nowrap;opacity:0;pointer-events:none;transition:.1s;z-index:40;box-shadow:var(--shadow-sm)}
+  [data-tip]:hover::after{opacity:1}
+  /* Asistente de conexión */
+  .guide-list{counter-reset:guide;margin:8px 0;padding:0;list-style:none}
+  .guide-list li{counter-increment:guide;padding:9px 11px 9px 38px;margin-bottom:6px;position:relative;
+    background:var(--bg-2);border:1px solid var(--line);border-radius:var(--radius-sm);font-size:12px;line-height:1.55;color:var(--text-2)}
+  .guide-list li::before{content:counter(guide);position:absolute;left:10px;top:50%;transform:translateY(-50%);
+    width:20px;height:20px;border-radius:50%;background:var(--accent-dim);color:var(--accent);
+    display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:var(--mono)}
+  .guide-list li b{color:var(--text)}
+  .info-grid{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px;line-height:1.5;margin:8px 0}
+  .info-grid .k{color:var(--text-2);font-weight:600;white-space:nowrap}
+  .info-grid .k code{color:var(--accent)}
+  .info-grid .v{color:var(--text-2);font-family:var(--sans)}
+  .info-grid .v code{background:var(--bg-3);padding:2px 6px;border-radius:3px;color:var(--accent);font-size:11px}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- TOPBAR -->
+  <header>
+    <div class="brand">
+      <div class="mark">A</div>
+      <div>
+        <span class="name">AlienProbe</span>
+        <span class="ver">0xAlienSec</span>
+      </div>
+    </div>
+    <div class="statusbar" id="statusbar">
+      <span class="chip" id="st-adb"><span class="dot"></span>adb</span>
+      <span class="chip" id="st-device"><span class="dot"></span>device</span>
+      <span class="chip" id="st-root"><span class="dot"></span>root</span>
+      <span class="chip" id="st-frida"><span class="dot"></span>frida</span>
+      <span class="chip" id="st-target"><span class="dot"></span>target</span>
+      <span class="chip" id="st-mode"><span class="dot"></span>modo</span>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- SIDEBAR -->
+    <aside>
+      <div class="section">
+        <div class="sh"><span class="ico">⚙</span> adb <span class="qicon" data-help="adb" data-help-sub="path" title="Ruta del ejecutable adb">?</span></div>
+        <div class="field">
+          <label data-tip="Ruta del ejecutable adb (adb.exe).">Ruta del ejecutable</label>
+          <input id="adb-path" placeholder="auto (PATH)" data-tip="Ruta del ejecutable adb (adb.exe)." />
+        </div>
+        <div class="btnrow">
+          <button class="btn small" onclick="adbTest()" data-tip="Verifica que adb responde.">Probar</button>
+          <button class="btn small primary" onclick="adbSet()" data-tip="Guarda la ruta de adb.">Guardar</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="sh"><span class="ico">📱</span> Dispositivo <span class="qicon" data-help="device" data-help-sub="detectar" title="Lista dispositivos conectados (adb devices).">?</span></div>
+        <div class="btnrow" style="margin-bottom:8px">
+          <button class="btn small" onclick="refreshDevices()" data-tip="Vuelve a listar los dispositivos (no elige por ti).">↻ Refrescar</button>
+          <button class="btn small" onclick="autoconnect()" data-tip="Probar puertos típicos de emuladores.">⚡ Auto-detectar</button>
+        </div>
+        <div class="field">
+          <label data-tip="Conectar un emulador por red (host:port).">Conectar manual (host:port)</label>
+          <input id="hostport" placeholder="127.0.0.1:62001" data-tip="Conectar un emulador por red (host:port)." />
+        </div>
+        <button class="btn small wide" onclick="connectHost()" data-tip="Ejecuta 'adb connect host:port'.">Conectar</button>
+        <div id="devs-list" class="list" style="margin-top:10px"></div>
+      </div>
+
+      <div class="section">
+        <div class="sh"><span class="ico">📦</span> App objetivo <span class="qicon" data-help="app" data-help-sub="listar" title="Lista las apps instaladas (terceros).">?</span></div>
+        <div class="btnrow" style="margin-bottom:8px">
+          <button class="btn small" onclick="loadPackages()" data-tip="Lista las apps instaladas (terceros).">Listar apps</button>
+          <button class="btn small" onclick="installApk()" data-tip="Instalar un APK desde tu disco.">Instalar APK</button>
+        </div>
+        <div class="field">
+          <label data-tip="Filtra la lista de paquetes.">Filtro de paquete</label>
+          <input id="pkg-filter" oninput="loadPackages()" placeholder="alien" data-tip="Filtra la lista de paquetes." />
+        </div>
+        <div id="pkgs-list" class="list" style="max-height:220px;overflow-y:auto"></div>
+        <div class="field" style="margin-top:10px">
+          <label data-tip="Cómo se lee el almacenamiento privado.">Modo de acceso</label>
+          <select id="mode-sel" onchange="setMode()" data-tip="Cómo se lee el almacenamiento privado.">
+            <option value="auto">auto (recomendado)</option>
+            <option value="root">root (su)</option>
+            <option value="runas">run-as (debug)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="sh"><span class="ico">🔌</span> Frida <span class="qicon" data-help="frida" data-help-sub="iniciar" title="Descarga, sube y arranca frida-server (auto).">?</span></div>
+        <button class="btn small wide mb-2" onclick="fridaStatus()" data-tip="Comprueba si frida-server responde como root.">Verificar frida-server</button>
+        <button class="btn small wide primary mb-2" onclick="fridaServerStart()" data-tip="Descarga, sube y arranca frida-server (auto).">Iniciar frida-server</button>
+        <button class="btn small wide ghost" onclick="fridaReactivate()" data-tip="Re-arranca frida-server tras reiniciar el emulador.">↻ Reactivar frida-server</button>
+        <div id="frida-status" style="margin-top:8px;font-size:11px;color:var(--text-2);font-family:var(--mono)"></div>
+      </div>
+    </aside>
+
+    <!-- CONTENT -->
+    <div style="display:flex;flex-direction:column;overflow:hidden">
+      <div class="tabs">
+        <button class="tab active" data-tab="recon" onclick="tab('recon')" data-tip="Versión, debuggable, uid, modo de acceso.">Recon</button>
+        <button class="tab" data-tab="components" onclick="tab('components')" data-tip="Activities/servicios; resalta los exportados.">Componentes</button>
+        <button class="tab" data-tab="storage" onclick="tab('storage')" data-tip="Extrae prefs + SQLite y escanea secretos.">Almacenamiento</button>
+        <button class="tab" data-tab="launch" onclick="tab('launch')" data-tip="Lanza activities con extras (IDOR/exported).">Launch / IDOR</button>
+        <button class="tab" data-tab="capture" onclick="tab('capture')" data-tip="Screenshot del dispositivo.">Captura</button>
+        <button class="tab" data-tab="logcat" onclick="tab('logcat')" data-tip="Logs de la app.">Logcat</button>
+        <button class="tab" data-tab="frida" onclick="tab('frida')" data-tip="Presets de instrumentación (bypass, trazas).">Frida <span class="badge">29</span></button>
+        <button class="tab" data-tab="report" onclick="tab('report')" data-tip="Auditoría completa + informe MASVS.">Informe</button>
+        <button class="tab" data-tab="hunt" onclick="tab('hunt')" data-tip="Busca secretos, claves y flags en el APK (jadx).">🕵️ Cazador</button>
+        <button class="tab" data-tab="connect" onclick="tab('connect')" data-tip="Cómo conectar Genymotion/Nox/AVD/físico.">Cómo conectar</button>
+      </div>
+      <div class="content" id="content">
+
+        <!-- AVISO ETICO -->
+        <div class="banner">
+          <strong>⚠ Uso ético/legal.</strong>
+          <span>Solo apps propias, de laboratorio o con autorización escrita del titular. La banca real solo bajo contrato de pentest. Ejecutar en entorno aislado.</span>
+        </div>
+
+        <!-- INTRO DIDÁCTICA POR PESTAÑA (se inyecta sola según la pestaña activa) -->
+        <div id="tab-intro"></div>
+
+        <!-- PESTAÑA: CÓMO CONECTAR (antes salía en todas las pantallas; ahora es su propia pestaña) -->
+        <div id="tab-connect" class="tabpane hidden">
+        <div class="panel" style="border-left:3px solid var(--accent)">
+          <h2><span class="accent">¿Cómo conecto mi dispositivo?</span> <span class="qicon" data-help-guide title="Guía para conectar Genymotion/Nox/AVD/físico">?</span></h2>
+          <p class="lead">Sigue estos pasos. Cuando los chips <span class="chip ok" style="display:inline-flex;padding:2px 8px"><span class="dot"></span>device</span> y <span class="chip ok" style="display:inline-flex;padding:2px 8px"><span class="dot"></span>root</span> estén verdes, ya puedes elegir la app y analizar.</p>
+          <div id="guide-steps"></div>
+          <div class="btnrow mt-3">
+            <button class="btn primary" onclick="wizardStep(1)" id="wiz-btn">▶ Asistente de 3 pasos</button>
+          </div>
+          <div id="wizard-panel" class="hidden" style="margin-top:14px;padding:12px;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--radius-sm)">
+            <div id="wiz-step" style="font-weight:600;color:var(--accent);margin-bottom:8px;font-size:13px"></div>
+            <div id="wiz-body" style="font-size:12px;color:var(--text-2);line-height:1.55"></div>
+            <div class="btnrow mt-3">
+              <button class="btn small ghost" onclick="wizardPrev()" id="wiz-prev">← Atrás</button>
+              <button class="btn small primary" onclick="wizardNext()" id="wiz-next">Siguiente →</button>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <!-- RECON -->
+        <div id="tab-recon" class="tabpane">
+          <div class="panel">
+            <h2>Reconocimiento de la aplicación</h2>
+            <p class="lead">Información básica del paquete: versión, flag <code>debuggable</code>, UID, directorio de datos y modo de acceso detectado.</p>
+            <div class="panel-actions">
+              <button class="btn primary" onclick="runInfo()">▶ Ejecutar recon</button>
+            </div>
+            <pre id="info-out" class="text-muted">Pulsa «Ejecutar recon» para ver los datos.</pre>
+          </div>
+        </div>
+
+        <!-- COMPONENTES -->
+        <div id="tab-components" class="tabpane hidden">
+          <div class="panel">
+            <h2>Componentes declarados y exportados</h2>
+            <p class="lead">Lista de activities, services y receivers. Los <span class="badge-exported">EXPORTED</span> son accesibles desde otras apps (CWE-926 / MASVS-PLATFORM).</p>
+            <div class="panel-actions">
+              <button class="btn primary" onclick="runComponents()">Listar componentes</button>
+            </div>
+            <div id="comps-out"></div>
+          </div>
+        </div>
+
+        <!-- STORAGE -->
+        <div id="tab-storage" class="tabpane hidden">
+          <div class="panel">
+            <h2>Almacenamiento privado <span class="text-tenue" style="font-weight:400;font-size:11px">(prefs + SQLite)</span></h2>
+            <p class="lead">Extrae SharedPreferences y bases SQLite del sandbox de la app. Los secretos detectados (tokens, flags, claves) se resaltan en rojo.</p>
+            <div class="panel-actions">
+              <button class="btn primary" onclick="runStorage()">Extraer almacenamiento</button>
+            </div>
+            <div id="storage-out"></div>
+          </div>
+        </div>
+
+        <!-- HUNT (cazador de secretos, modulo adicional) -->
+        <div id="tab-hunt" class="tabpane hidden">
+          <div class="panel">
+            <h2>🕵️ Cazador de secretos <span class="text-tenue" style="font-weight:400;font-size:11px">(estático · jadx)</span></h2>
+            <p class="lead">Busca credenciales, tokens, URLs y flags dentro del APK. Con jadx muestra el código Java con archivo y línea; sin jadx, hace un barrido de cadenas del binario.</p>
+
+            <div id="hunt-jadx" class="row" style="align-items:center;gap:10px;margin-bottom:10px"></div>
+
+            <div class="field"><label>APK a analizar</label>
+              <div class="row" style="gap:10px;align-items:center">
+                <input type="file" id="hunt-file" accept=".apk" style="display:none" onchange="huntUpload(this)" />
+                <button class="btn" onclick="document.getElementById('hunt-file').click()">📂 Abrir APK…</button>
+                <span id="hunt-apk-name" class="text-tenue" style="font-size:12px">Si no eliges archivo, se toma el de la app seleccionada (pull del dispositivo).</span>
+                <input type="hidden" id="hunt-apk" value="" />
+              </div>
+            </div>
+
+            <div class="row" style="gap:10px;align-items:flex-end">
+              <div class="field grow"><label>Buscar (texto o /regex/)</label>
+                <input id="hunt-q" placeholder="password · area51 · token · http" onkeydown="if(event.key==='Enter')huntRun('custom')" /></div>
+              <button class="btn" onclick="huntRun('custom')">🔍 Buscar</button>
+            </div>
+
+            <div class="panel-actions" style="margin-top:10px">
+              <button class="btn primary" onclick="huntRun('quick')">⚡ Cacería rápida</button>
+              <button class="btn" onclick="huntRun('alien')">👽 Cazar ALIEN</button>
+              <button class="btn" onclick="huntRun('creds')">🔑 Credenciales</button>
+              <button class="btn" onclick="huntAsset()">🔓 Decodificar config.dat (F9)</button>
+            </div>
+            <label style="display:inline-flex;align-items:center;gap:7px;font-size:12px;margin-top:9px;cursor:pointer">
+              <input type="checkbox" id="hunt-usejadx" checked />
+              Usar <b>jadx</b>: código Java con nº de línea y contexto ±3. La primera vez decompila (~30 s); después es inmediato. Sin marcar, busca en el binario al instante (sin líneas).
+            </label>
+
+            <div class="text-tenue" style="font-size:11.5px;margin-top:10px;line-height:1.9">
+              <b>Qué hace cada botón:</b><br>
+              ⚡ <b>Cacería rápida</b> — busca de una vez los patrones típicos (credenciales, tokens, URLs, IP y flags).<br>
+              👽 <b>Cazar ALIEN</b> — solo las flags <code>ALIEN{…}</code>.<br>
+              🔑 <b>Credenciales</b> — cae en la siembra de usuarios y el login; revela <code>alien</code>/<code>area51</code> y campos como <code>password_plain</code>.<br>
+              🔓 <b>Decodificar config.dat (F9)</b> — extrae el asset y lo decodifica (Base64 → XOR 0x42); es la llave del material.<br>
+              🔍 <b>Buscar</b> — tu término o <code>/regex/</code>.
+            </div>
+            <div class="text-tenue" style="font-size:11.5px;margin-top:8px;line-height:1.85">
+              La <b>cacería rápida</b> marca: 👽 <b>flags</b> <code>ALIEN{…}</code> · 🔑 credenciales (<code>password</code>, <code>clave</code>) · 🗝️ secretos/tokens (<code>secret</code>, <code>token</code>, <code>apikey</code>) · 🌐 URLs de backend · 📡 IP:puerto.
+            </div>
+            <p class="lead" style="margin-top:6px">En “Buscar” escribe un término: <code>password</code> (sale el campo <code>password_plain</code>), <code>area51</code>, <code>token</code>, <code>secret</code> o <code>http</code>. Con jadx, el botón <b>🔎 contexto ±3</b> abre las líneas alrededor del hallazgo, útil para leer una credencial en su sitio. No hace falta saber la flag de antemano: se busca por patrones.</p>
+
+            <div id="hunt-out"></div>
+          </div>
+        </div>
+
+        <!-- LAUNCH -->
+        <div id="tab-launch" class="tabpane hidden">
+          <div class="panel">
+            <h2>Lanzar activity <span class="text-tenue" style="font-weight:400;font-size:11px">(IDOR / exported)</span></h2>
+            <p class="lead">Lanza una activity con extras para probar acceso indebido. Si abre la cuenta de otro usuario cambiando el ID → <code>IDOR</code> (MASVS-AUTHZ).</p>
+            <div class="field"><label>Activities detectadas <span class="text-tenue" style="font-weight:400;font-size:11px">(⚠ = exportada, se abre sin login)</span></label>
+              <select id="launch-pick" onchange="pickLaunchAct(this)"><option value="">— pulsa aquí; primero elige la app —</option></select></div>
+            <div class="field"><label>Activity (relativo al paquete)</label>
+              <input id="launch-act" placeholder=".ui.AccountActivity" value=".ui.AccountActivity" /></div>
+            <div style="margin:2px 0 8px">
+              <span class="text-tenue" style="font-size:11px;margin-right:6px">Atajos del taller:</span>
+              <button class="btn" onclick="pickPreset('.ui.AccountActivity','accountId','2')">👤 Cuenta ajena (IDOR · F5)</button>
+              <button class="btn" onclick="pickPreset('.ui.SecretAdminActivity','','')">🛡️ Panel Admin ⚠ (F6)</button>
+            </div>
+            <div style="margin:-2px 0 8px">
+              <button class="btn" onclick="loadExtras(document.getElementById('launch-act').value.trim())">🔎 Consultar parámetros</button>
+              <span class="text-tenue" style="font-size:11px;margin-left:8px">lee el código de la activity y lista los extras que acepta</span>
+            </div>
+            <div class="row">
+              <div class="field grow"><label>Extra key</label><input id="launch-ek" placeholder="accountId" value="accountId" /></div>
+              <div class="field grow"><label>Extra value</label><input id="launch-ev" placeholder="2" value="2" /></div>
+            </div>
+            <div id="launch-extras" style="margin-top:8px"></div>
+            <div class="panel-actions" style="margin-top:10px">
+              <button class="btn primary" onclick="runLaunch()">▶ am start</button>
+            </div>
+            <pre id="launch-out" class="text-muted">Resultado del lanzamiento…</pre>
+          </div>
+        </div>
+
+        <!-- CAPTURE -->
+        <div id="tab-capture" class="tabpane hidden">
+          <div class="panel">
+            <h2>Captura de pantalla</h2>
+            <p class="lead">Toma una captura (<code>screencap</code>) del estado actual del dispositivo como evidencia.</p>
+            <div class="panel-actions">
+              <button class="btn primary" onclick="runScreenshot()">📷 Capturar</button>
+            </div>
+            <div id="shot-out"></div>
+          </div>
+        </div>
+
+        <!-- LOGCAT -->
+        <div id="tab-logcat" class="tabpane hidden">
+          <div class="panel">
+            <h2>Logcat filtrado por app</h2>
+            <p class="lead">Logs del proceso de la app. Muchas aplicaciones filtran datos sensibles por descuido.</p>
+            <div class="row">
+              <div class="field grow"><label>Líneas</label><input id="log-lines" value="200" /></div>
+              <button class="btn primary" onclick="runLogcat()">Leer logcat</button>
+            </div>
+            <pre id="logcat-out" class="mt-2 text-muted">Pulsa «Leer logcat»…</pre>
+          </div>
+        </div>
+
+        <!-- FRIDA -->
+        <div id="tab-frida" class="tabpane hidden">
+          <div class="panel">
+            <h2><span class="accent">Frida</span>: ¿dónde se baja, dónde se sube, dónde corre? <span class="qicon" data-help-frida title="Info del ciclo de vida de frida-server">?</span></h2>
+            <div id="frida-info"></div>
+          </div>
+
+          <div class="panel">
+            <h2>Panel de funciones preestablecidas <span class="accent">Frida</span></h2>
+            <p class="lead">
+              <strong>[F] spawn</strong> abre la app con hooks cargados antes de que corra (ideal para bypass de root).
+              <strong>[F] attach</strong> se engancha a la app ya abierta.
+              <strong>[C]</strong> usa el núcleo adb. Requiere <code>frida-server</code> corriendo.
+            </p>
+            <div class="grid" id="presets-grid"></div>
+          </div>
+
+          <div class="panel">
+            <h2>Parámetros del preset</h2>
+            <div id="preset-params" class="hidden">
+              <div id="preset-params-fields"></div>
+              <div class="btnrow mt-3">
+                <button class="btn primary" id="preset-run-btn" onclick="runPreset()">▶ Ejecutar preset</button>
+                <button class="btn ghost" onclick="clearActivePreset()">Cancelar</button>
+              </div>
+            </div>
+            <div id="preset-empty" class="empty">
+              <div class="em-ico">⚡</div>
+              <div class="em-t">Selecciona un preset</div>
+              <div class="em-s">Pulsa una tarjeta de arriba para configurar y ejecutar la función.</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Consola en vivo</h2>
+            <div class="row" style="margin-bottom:10px">
+              <button class="btn small danger" onclick="stopSession()">⏹ Detener sesión</button>
+              <button class="btn small ghost" onclick="clearConsole()">Limpiar</button>
+              <button class="btn small ghost" onclick="trafficStop()" title="Quita el proxy del device y detiene mitmproxy">⤓ Quitar proxy</button>
+              <span class="chip" id="sess-status"><span class="dot"></span>sin sesión</span>
+              <span class="grow"></span>
+              <label style="font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:4px;cursor:pointer">
+                <input type="checkbox" id="autoscroll" checked style="width:auto" /> auto-scroll
+              </label>
+            </div>
+            <div class="console" id="console"></div>
+          </div>
+        </div>
+
+        <!-- REPORT -->
+        <div id="tab-report" class="tabpane hidden">
+          <div class="panel">
+            <h2>Informe de análisis dinámico (acumulativo)</h2>
+            <p class="lead">Cada acción que haces sobre la app (bypass, almacenamiento, IDOR, captura…) se
+              registra aquí sola, con su lectura de <b>app real</b> y categoría OWASP MASVS. Descárgalo como
+              informe profesional en <b>.md</b> cuando quieras — es tu insumo.</p>
+            <div class="panel-actions">
+              <button class="btn primary" onclick="downloadLedger()">⤓ Descargar .md</button>
+              <button class="btn primary" onclick="downloadLedgerHtml()">⤓ Descargar .html (→ PDF)</button>
+              <button class="btn" onclick="refreshLedger()">↻ Actualizar</button>
+              <button class="btn" onclick="runAudit()">⚡ Auditoría completa</button>
+              <button class="btn ghost" onclick="clearLedger()">Vaciar</button>
+            </div>
+            <div style="display:flex;gap:8px;margin:10px 0">
+              <input id="note-input" placeholder="Añadir una nota del analista al informe…" style="flex:1"/>
+              <button class="btn small" onclick="addNote()">+ Nota</button>
+            </div>
+            <div id="ledger" class="text-muted" style="margin-top:6px">Aún no hay hallazgos. Ejecuta una acción (p. ej. «Abrir con bypass de root», «Extraer almacenamiento», «IDOR») y aparecerán aquí.</div>
+            <details style="margin-top:14px">
+              <summary style="cursor:pointer;color:var(--text-3)">Informe clásico (escaneo de un tiro)</summary>
+              <div class="panel-actions" style="margin-top:8px">
+                <button class="btn small" onclick="runReport()">Generar informe clásico</button>
+                <button class="btn ghost small" id="dl-report" style="display:none">⤓ Descargar .md</button>
+              </div>
+              <pre id="report-out" class="text-muted">El informe aparecerá aquí…</pre>
+            </details>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+const API = (p, opt) => fetch(p, opt).then(r => r.json()).catch(e => ({ok:false, error:String(e)}));
+let PRESETS = [];
+let activePreset = null;
+let activeSession = null;
+let pollTimer = null;
+let pollIdx = 0;
+let state = {adb:null, serial:null, package:null, mode:"auto", access_mode:null};
+let HELP = {};            // catálogo ui_help.json (v3.2)
+let wizStep = 0;
+
+/* ---------- carga de ayuda (v3.2) ---------- */
+async function loadHelp(){
+  const r = await API('/api/help');
+  HELP = r.ok ? (r.data||{}) : {};
+  renderGuideSteps();
+  renderFridaInfo();
+}
+function tipOf(section, key){ try { return HELP[section][key].tip || ''; } catch(e){ return ''; } }
+function helpOf(section, key){ try { return HELP[section][key].help || ''; } catch(e){ return ''; } }
+
+/* ---------- popover de "?" (único handler delegado) ---------- */
+document.addEventListener('click', function(e){
+  // Quitar popover existente si se clickea fuera
+  const pop = document.getElementById('popover');
+  if(pop && !(pop.contains(e.target) || e.target.classList.contains('qicon'))){
+    pop.remove(); return;
+  }
+  const q = e.target.closest('.qicon');
+  if(!q) return;
+  e.stopPropagation();
+  let title = '', body = '';
+  if(q.hasAttribute('data-help')){
+    const sec = q.getAttribute('data-help');
+    const sub = q.getAttribute('data-help-sub');
+    title = sub ? (HELP[sec] && HELP[sec][sub] ? (HELP[sec][sub].tip||sec) : sec) : sec;
+    body = sub ? helpOf(sec, sub) : (HELP[sec] && HELP[sec]._comment ? HELP[sec]._comment : '');
+  } else if(q.hasAttribute('data-help-preset')){
+    const p = PRESETS.find(x => x.id === q.getAttribute('data-help-preset'));
+    if(p){ title = p.title; body = (p.help||'') + (p.cli ? '\n\nCLI: ' + p.cli.replace(/<pkg>/g, state.package||'<pkg>') : ''); }
+  } else if(q.hasAttribute('data-help-guide')){
+    title = HELP.connection_guide ? HELP.connection_guide.titulo : 'Conexión';
+    body = (HELP.connection_guide && HELP.connection_guide.pasos) ? HELP.connection_guide.pasos.join('\n\n') : '';
+  } else if(q.hasAttribute('data-help-frida')){
+    title = HELP.frida_info ? HELP.frida_info.titulo : 'Frida';
+    body = (HELP.frida_info && HELP.frida_info.puntos) ? HELP.frida_info.puntos.join('\n\n') : '';
+  } else if(q.hasAttribute('data-help-tab')){
+    const t = q.getAttribute('data-help-tab');
+    title = (HELP.tabs && HELP.tabs[t]) ? HELP.tabs[t].tip : t;
+    body = (HELP.tabs && HELP.tabs[t]) ? HELP.tabs[t].help : '';
+  }
+  if(pop) pop.remove();
+  const el = document.createElement('div');
+  el.className = 'popover';
+  el.id = 'popover';
+  el.innerHTML = '<div class="ptitle">'+esc(title)+'</div><div class="ptext">'+esc(body).replace(/\n/g,'<br>')+'</div>';
+  document.body.appendChild(el);
+  const rect = q.getBoundingClientRect();
+  el.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+  el.style.left = (rect.left + window.scrollX - 10) + 'px';
+});
+
+/* ---------- asistente de conexión (v3.2 TAREA B) ---------- */
+function renderGuideSteps(){
+  const g = HELP.connection_guide;
+  const box = document.getElementById('guide-steps');
+  if(!g || !box) return;
+  box.innerHTML = '<ol class="guide-list">'+g.pasos.map(p => '<li>'+p+'</li>').join('')+'</ol>';
+}
+function hideGuide(){
+  document.getElementById('conn-guide').classList.add('hidden');
+}
+function wizardRun(step){
+  wizStep = step;
+  const panel = document.getElementById('wizard-panel');
+  panel.classList.remove('hidden');
+  const titleEl = document.getElementById('wiz-step');
+  const bodyEl = document.getElementById('wiz-body');
+  const nextBtn = document.getElementById('wiz-next');
+  const prevBtn = document.getElementById('wiz-prev');
+  if(step === 1){
+    titleEl.textContent = 'Paso 1 — Detectar dispositivo';
+    bodyEl.innerHTML = 'Pulsa <button class="btn small" onclick="wizardRefreshDevices()">↻ Detectar ahora</button> y revisa la lista del sidebar. Si está vacío: enciende Genymotion (aparece solo) o usa <b>Auto-detectar</b> / <b>Conectar manual</b> para Nox (127.0.0.1:62001).';
+    nextBtn.textContent = 'Siguiente →';
+  } else if(step === 2){
+    titleEl.textContent = 'Paso 2 — Conectar y seleccionar';
+    const devs = document.querySelectorAll('#devs-list .list-row');
+    if(devs.length){
+      bodyEl.innerHTML = 'Se detectaron <b>'+devs.length+'</b> dispositivo(s). Clica uno en el sidebar para seleccionarlo. Si no aparece el que buscas, prueba <button class="btn small" onclick="autoconnect()">Auto-detectar</button> o escribe host:port y <button class="btn small" onclick="connectHost()">Conectar</button>.';
+    } else {
+      bodyEl.innerHTML = 'Aún no hay dispositivos. Vuelve al paso 1.';
+    }
+    nextBtn.textContent = 'Siguiente →';
+  } else if(step === 3){
+    const root = state.access_mode === 'root' || (document.querySelector('#st-root.ok') !== null);
+    const ok = state.serial && root;
+    titleEl.textContent = 'Paso 3 — Verificar root';
+    bodyEl.innerHTML = state.serial
+      ? ('Dispositivo: <b>'+state.serial+'</b><br>Root: '+(root?'<span style="color:var(--accent)">✓ disponible (puedes analizar apps release y usar Frida spawn)</span>':'<span style="color:var(--warn)">✗ sin root — solo apps debug (run-as). Para spawn y apps release necesitas Genymotion o AVD con `adb root`.</span>'))
+      : 'No hay dispositivo seleccionado. Vuelve al paso 2.';
+    nextBtn.textContent = ok ? '✓ Listo' : 'Reintentar';
+  }
+}
+function wizardStep(n){ wizardRun(1); }
+function wizardNext(){ if(wizStep < 3) wizardRun(wizStep+1); else wizardRun(3); }
+function wizardPrev(){ if(wizStep > 1) wizardRun(wizStep-1); }
+async function wizardRefreshDevices(){ await loadDevices(); wizardRun(1); }
+
+/* ---------- info del panel Frida (v3.2 TAREA C) ---------- */
+function renderFridaInfo(){
+  const info = HELP.frida_info;
+  const box = document.getElementById('frida-info');
+  if(!info || !box) return;
+  box.innerHTML = '<div class="info-grid">'+
+    '<div class="k">Se descarga de</div><div class="v">github.com/frida/frida/releases, archivo <code>frida-server-&lt;version&gt;-android-&lt;arch&gt;.xz</code> (la versión debe coincidir con el frida del venv: <code>frida --version</code>).</div>'+
+    '<div class="k">Se sube a</div><div class="v"><code>/data/local/tmp/frida-server</code> (en el dispositivo).</div>'+
+    '<div class="k">Se ejecuta</div><div class="v">En el <b>dispositivo</b>, como <b>root</b>, escuchando en el puerto <code>27042</code>. El host (tu PC) habla con él por adb.</div>'+
+    '<div class="k">Ciclo de vida</div><div class="v">No es un servicio: hay que arrancarlo tras <b>cada reinicio del emulador</b>. Pulsa «Iniciar frida-server» o «Reactivar».</div>'+
+    '<div class="k">Errores típicos</div><div class="v"><code>need Gadget/jailed</code> = frida-server no corre como root (o device ARM-traducido). <code>version mismatch</code> = host y server con versiones distintas.</div>'+
+    '</div>';
+}
+
+/* ---------- toasts ---------- */
+function fmtToast(msg){
+  // Si el mensaje tiene marcadores [tipo]/[mensaje]/[causa]/[fix] (diagnostico de frida),
+  // lo renderiza con formato y resalta las etiquetas.
+  if(typeof msg !== 'string' || msg.indexOf('[') === -1) return msg;
+  const labels = ['tipo','mensaje','causa','fix'];
+  let html = msg;
+  labels.forEach(lb => {
+    const re = new RegExp('\\['+lb+'\\]','g');
+    html = html.replace(re, '<b style="color:var(--warn)">['+lb+']</b>');
+  });
+  return '<span class="msg">'+html+'</span>';
+}
+function toast(msg, kind){
+  const t = document.createElement('div');
+  t.className = 'toast' + (kind?(' '+kind):'');
+  const ico = kind==='err'?'✕':kind==='warn'?'⚠':kind==='ok'?'✓':'•';
+  t.innerHTML = '<span class="ti">'+ico+'</span>'+fmtToast(msg);
+  document.getElementById('toasts').appendChild(t);
+  // Errores de diagnostico (multilinea) duran mas para dar tiempo a leerlos
+  const ttl = (kind==='err' && typeof msg === 'string' && msg.indexOf('[fix]') !== -1) ? 10000 : 3500;
+  setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),200)}, ttl);
+}
+function ok(data){ if(data && data.error) toast(data.error, 'err'); return data; }
+
+/* ---------- status bar ---------- */
+async function refreshState(){
+  const s = await API('/api/state');
+  if(s.ok){ state = s.data; renderStatus(); }
+}
+function renderStatus(){
+  const c = (id, txt, kind, title) => {
+    const e = document.getElementById(id);
+    e.innerHTML = '<span class="dot"></span>'+txt;
+    e.className = 'chip'+(kind?(' '+kind):'');
+    if(title) e.setAttribute('title', title); else e.removeAttribute('title');
+  };
+  // adb: estado del ejecutable adb (descarga auto si falta)
+  c('st-adb', state.adb ? 'adb ✓' : 'adb ✗', state.adb?'ok':'bad',
+    'Ejecutable adb detectado y listo. Si está en rojo, run.py no encontró platform-tools.');
+  // device: hay un dispositivo/emulador seleccionado
+  c('st-device', state.serial ? state.serial : 'sin device', state.serial?'ok':'bad',
+    'Dispositivo/emulador conectado por adb. Ej: Nox = 127.0.0.1:62001. Rojo = ningún dispositivo seleccionado.');
+  // root/runas/none: modo de acceso al almacenamiento privado
+  const am = state.access_mode;
+  let amTxt, amKind, amTitle;
+  if(am === 'root'){ amTxt='root ✓'; amKind='ok';
+    amTitle='Acceso root disponible: lectura de /data/data con su. Funciona con apps release (Nox rooteado).'; }
+  else if(am === 'runas'){ amTxt='run-as'; amKind='warn';
+    amTitle='App debuggable: acceso vía run-as (sin root). Solo apps de desarrollo.'; }
+  else { amTxt='sin acceso'; amKind='bad';
+    amTitle='Sin acceso: ni root ni run-as. Necesitas emulador rooteado (Nox) o app debuggable.'; }
+  c('st-root', amTxt, amKind, amTitle);
+  // frida: estado de frida-server (se actualiza desde fridaStatus)
+  c('st-frida', 'frida', 'warn',
+    'frida-server corriendo en el device. Verde=ok, amarillo=instalado pero server off, rojo=no instalado. Pulsa «Iniciar frida-server».');
+  // target: app objetivo seleccionada
+  c('st-target', state.package ? state.package : 'sin target', state.package?'ok':'bad',
+    'App objetivo (paquete) seleccionada. Clic en un paquete de la lista «App objetivo». Rojo = ninguno seleccionado.');
+  // mode: preferencia de modo de acceso (auto/root/runas) del desplegable
+  c('st-mode', 'modo: '+(state.mode||'auto'), 'info',
+    'Preferencia de modo de acceso (auto/root/runas). auto detecta según el device. Cambialo en el desplegable del sidebar.');
+}
+
+/* ---------- intro didáctica por pestaña (aprendizaje) ---------- */
+const TAB_INTRO = {
+  recon:      {icon:'🔎', title:'Reconocimiento', what:'Identifica la app: versión, si es debuggable, su UID y el modo de acceso disponible.', when:'Es el primer paso, para saber con qué trabajas y si podrás leer su sandbox.', look:'Si es debuggable (mala señal en release) y si tienes acceso root o run-as.'},
+  components: {icon:'🧩', title:'Componentes', what:'Lista Activities, Services y Receivers, y resalta los exportados.', when:'Para mapear la superficie de ataque de la app.', look:'Componentes exportados que se abran sin login → posible salto de autenticación (MASVS-PLATFORM).'},
+  storage:    {icon:'🗄️', title:'Almacenamiento', what:'Extrae SharedPreferences y bases SQLite del sandbox y escanea secretos.', when:'Tras entrar/usar la app, para ver qué guarda en el dispositivo.', look:'Tokens, PII o claves en claro sin cifrar (MASVS-STORAGE).'},
+  launch:     {icon:'🚀', title:'Launch / IDOR', what:'Lanza Activities con parámetros (ej. un id de cuenta ajeno).', when:'Para probar acceso indebido a objetos de otros usuarios.', look:'Si cambiando un identificador ves datos de otro usuario → IDOR (MASVS-AUTH).'},
+  capture:    {icon:'📸', title:'Captura', what:'Toma una captura de pantalla del dispositivo.', when:'Para evidencia y para probar si la app protege sus pantallas.', look:'Si puedes capturar pantallas sensibles → falta FLAG_SECURE (MASVS-PLATFORM).'},
+  logcat:     {icon:'📜', title:'Logcat', what:'Muestra los logs de la app en ejecución.', when:'Para detectar información que la app filtra en los logs.', look:'Tokens, PII o mensajes de depuración impresos en el log (MASVS-STORAGE/CODE).'},
+  frida:      {icon:'🧬', title:'Frida (instrumentación)', what:'Modifica la app en vivo: bypass de root/SSL, hooks y trazas.', when:'Para saltar controles del cliente y observar o alterar la lógica en tiempo real.', look:'Controles evadibles con un hook (MASVS-RESILIENCE) y tráfico legible tras el unpinning.'},
+  report:     {icon:'📄', title:'Informe', what:'Registra cada acción con su lectura de "app real" y lo exporta en .md o .html (→ PDF).', when:'Siempre: es tu entregable. Se va llenando solo con lo que haces.', look:'El resumen de hallazgos por severidad y su mapeo OWASP MASVS.'},
+  hunt:       {icon:'🕵️', title:'Cazador de secretos', what:'Busca en el APK (con jadx o cadenas del binario) credenciales, tokens, URLs y las flags ALIEN{…}.', when:'En el análisis estático, para hallar secretos sin revisar a mano toda la lista de strings.', look:'Credenciales o tokens en claro (MASVS-CODE/STORAGE) y URLs de backend. Términos útiles: password, secret, token, http.'},
+  connect:    {icon:'🔌', title:'Cómo conectar', what:'Guía para conectar el dispositivo (Genymotion, Nox, AVD o físico).', when:'Al inicio, cuando los chips device / root no están en verde.', look:'Que ambos chips se pongan verdes antes de elegir la app y analizar.'},
+};
+let introHidden = false;
+function renderTabIntro(name){
+  const el = document.getElementById('tab-intro');
+  if(!el) return;
+  const d = TAB_INTRO[name];
+  if(!d || introHidden){ el.innerHTML=''; el.style.display='none'; return; }
+  el.style.display='';
+  el.innerHTML =
+    '<h3><span class="ti-ico">'+d.icon+'</span>'+d.title+
+      '<button class="ti-close" onclick="hideIntro()" title="Ocultar las explicaciones">ocultar ✕</button></h3>'+
+    '<p class="ti-what">'+d.what+'</p>'+
+    '<div class="ti-grid">'+
+      '<div class="ti-card"><div class="k">¿En qué caso?</div><div class="v">'+d.when+'</div></div>'+
+      '<div class="ti-card"><div class="k">¿Qué buscar?</div><div class="v">'+d.look+'</div></div>'+
+    '</div>';
+}
+function hideIntro(){ introHidden = true; renderTabIntro(); toast('Explicaciones ocultas (recarga para volver a verlas)','ok'); }
+
+/* ---------- tabs ---------- */
+let currentTab = 'recon';
+function tab(name){
+  currentTab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.tabpane').forEach(p => p.classList.add('hidden'));
+  document.getElementById('tab-'+name).classList.remove('hidden');
+  renderTabIntro(name);
+  if(name==='frida') loadPresets();
+  if(name==='report') refreshLedger();
+  if(name==='hunt') huntStatus();
+  if(name==='launch') loadLaunchActs();
+}
+
+/* ---------- selector de activities (Launch/IDOR) ---------- */
+async function loadLaunchActs(){
+  const sel = document.getElementById('launch-pick'); if(!sel) return;
+  sel.innerHTML = '<option value="">Cargando…</option>';
+  const r = await API('/api/components');
+  if(!r.ok){ sel.innerHTML = '<option value="">(selecciona una app primero)</option>'; return; }
+  const comps = r.data.components || [];
+  const exp = new Set(r.data.exported || []);
+  const rel = c => c.includes('/') ? c.split('/').slice(1).join('/') : c;
+  const isApp = n => n.startsWith('.') || n.indexOf('taller.bancoalien') >= 0;
+  const items = comps.map(c => ({name: rel(c), exp: exp.has(c), app: isApp(rel(c))}));
+  items.sort((a,b)=>{
+    if(a.app!==b.app) return a.app ? -1 : 1;       // primero las de la app
+    if(a.exp!==b.exp) return a.exp ? -1 : 1;       // luego las exportadas
+    return a.name.localeCompare(b.name);
+  });
+  const opt = i => '<option value="'+esc(i.name)+'">'+esc(i.name)+(i.exp?'   ⚠ exportada':'')+'</option>';
+  const appItems = items.filter(i=>i.app), libItems = items.filter(i=>!i.app);
+  sel.innerHTML = '<option value="">— elige una activity —</option>' +
+    (appItems.length ? '<optgroup label="Activities de la app">'+appItems.map(opt).join('')+'</optgroup>' : '') +
+    (libItems.length ? '<optgroup label="Librerías / framework">'+libItems.map(opt).join('')+'</optgroup>' : '');
+}
+function pickLaunchAct(sel){
+  if(!sel.value) return;
+  document.getElementById('launch-act').value = sel.value;
+  loadExtras(sel.value);
+}
+function pickPreset(act, ek, ev){
+  document.getElementById('launch-act').value = act;
+  document.getElementById('launch-ek').value = ek || '';
+  document.getElementById('launch-ev').value = ev || '';
+  loadExtras(act);
+}
+async function loadExtras(activity){
+  const box = document.getElementById('launch-extras'); if(!box) return;
+  box.innerHTML = '<span class="text-tenue" style="font-size:11px">consultando parámetros que acepta…</span>';
+  const r = await API('/api/launch/extras', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({activity})});
+  if(!r.ok || !r.data){ box.innerHTML=''; return; }
+  const d = r.data; const ex = d.extras || [];
+  window.__extras = ex;
+  if(!ex.length){
+    box.innerHTML = '<span class="text-tenue" style="font-size:11px">Sin parámetros detectados'+(d.jadx===false?' (instala jadx en el Cazador para descubrirlos)':'')+'.</span>';
+    return;
+  }
+  box.innerHTML = '<div class="text-tenue" style="font-size:11px;margin-bottom:2px">Parámetros que acepta (clic para usar):</div>' +
+    ex.map((e,i)=>'<button class="btn" style="padding:2px 10px;font-size:11px;margin:4px 6px 0 0" onclick="useExtra('+i+')">'+
+      esc(e.key)+' <span style="opacity:.55">'+esc(e.type||'')+(e.example?(' → '+esc(e.example)):'')+'</span></button>').join('');
+}
+function useExtra(i){
+  const e = (window.__extras||[])[i]; if(!e) return;
+  document.getElementById('launch-ek').value = e.key;
+  if(e.example) document.getElementById('launch-ev').value = e.example;
+}
+
+/* ---------- cazador de secretos (modulo adicional) ---------- */
+async function huntStatus(){
+  const box = document.getElementById('hunt-jadx');
+  if(!box) return;
+  const r = await API('/api/hunt/status');
+  const s = r.ok ? r.data : {};
+  if(s.jadx_installed){
+    box.innerHTML = '<span class="chip ok">✓ jadx '+(s.jadx_version||'')+'</span>'+
+      (s.java ? '<span class="chip ok">✓ Java</span>' : '<span class="chip warn">Java no detectado</span>');
+  } else {
+    box.innerHTML = '<span class="chip warn">jadx no instalado</span>'+
+      '<button class="btn" onclick="huntInstall(this)">⬇ Instalar jadx</button>'+
+      '<span class="text-tenue" style="font-size:11px">(opcional: sin él, busca en cadenas del binario)</span>';
+  }
+}
+async function huntInstall(btn){
+  if(btn){ btn.disabled = true; btn.textContent = 'Descargando…'; }
+  const r = await API('/api/hunt/install', {method:'POST'});
+  if(r.ok && r.data && r.data.ok){ toast(r.data.message||'jadx instalado','ok'); }
+  else { toast((r.data && r.data.message) || r.error || 'No se pudo instalar jadx','err'); }
+  huntStatus();
+}
+async function huntAsset(){
+  const out = document.getElementById('hunt-out');
+  const apk = document.getElementById('hunt-apk').value.trim();
+  out.innerHTML = '<p class="text-tenue">Extrayendo y decodificando assets/config.dat…</p>';
+  const r = await API('/api/hunt/asset', {method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({apk_path:apk, name:'assets/config.dat'})});
+  if(!r.ok || (r.data && r.data.ok===false)){ out.innerHTML='<p class="text-danger">'+esc((r.data&&r.data.message)||r.error||'Error')+'</p>'; return; }
+  const d=r.data;
+  let h='<div style="margin:10px 0;font-size:12px" class="text-tenue">Asset: <b>'+esc(d.asset)+'</b> · '+d.size+' bytes · crudo: <code>'+esc(d.raw_preview||'')+'</code></div>';
+  (d.tries||[]).forEach(t=>{
+    const isFlag=/ALIEN\{/.test(t[1]);
+    h+='<div style="border:1px solid var(--line,#243a2c);border-radius:10px;padding:9px 12px;margin:7px 0;'+
+      (isFlag?'background:rgba(46,232,110,.08);border-color:rgba(46,232,110,.5)':'')+'">'+
+      '<div style="font-size:11px;opacity:.6;font-family:monospace">'+esc(t[0])+'</div>'+
+      '<code style="color:#57FF97;font-weight:700;word-break:break-word">'+esc(t[1])+'</code></div>';
+  });
+  if(d.flags && d.flags.length) h+='<p class="text-tenue" style="margin-top:8px">👽 Flag: <code style="color:#57FF97">'+d.flags.map(esc).join(', ')+'</code> — es la <b>llave del material</b> (envíala en el CTF Tracker).</p>';
+  out.innerHTML=h;
+}
+async function huntUpload(inp){
+  const f = inp.files && inp.files[0];
+  if(!f) return;
+  const nameEl = document.getElementById('hunt-apk-name');
+  nameEl.textContent = 'Subiendo '+f.name+'…';
+  try{
+    const fd = new FormData(); fd.append('apk', f);
+    const resp = await fetch('/api/hunt/upload', {method:'POST', body:fd});
+    const j = await resp.json();
+    if(j && j.ok){
+      document.getElementById('hunt-apk').value = j.data.path;
+      nameEl.innerHTML = '📎 <b>'+esc(j.data.name)+'</b> <span style="opacity:.6">(listo para cazar)</span>';
+      toast('APK cargado','ok');
+    } else { nameEl.textContent = 'No se pudo cargar el APK'; toast((j&&j.error)||'Error subiendo APK','err'); }
+  }catch(e){ nameEl.textContent = 'Error subiendo APK'; toast(''+e,'err'); }
+}
+async function huntRun(preset){
+  const out = document.getElementById('hunt-out');
+  const apk = document.getElementById('hunt-apk').value.trim();
+  const q = document.getElementById('hunt-q').value.trim();
+  if(preset==='custom' && !q){ toast('Escribe algo para buscar','err'); return; }
+  out.innerHTML = '<p class="text-tenue">Cazando… (la primera vez con jadx puede tardar en decompilar)</p>';
+  const useJadx = (document.getElementById('hunt-usejadx')||{checked:true}).checked;
+  const r = await API('/api/hunt', {method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({apk_path:apk, preset:preset, query:q, use_jadx:useJadx})});
+  if(!r.ok){ out.innerHTML = '<p class="text-danger">'+esc(r.error||'Error')+'</p>'; return; }
+  const d = r.data || {};
+  if(d.ok===false){ out.innerHTML = '<p class="text-danger">'+esc(d.message||'Sin resultados')+'</p>'; return; }
+  renderHunt(d);
+}
+function renderHunt(d){
+  const out = document.getElementById('hunt-out');
+  window.__hunt = d.results || [];
+  const st = d.stats || {};
+  const lines = (st.lines||0).toLocaleString();
+  const head = '<div style="margin:10px 0;font-size:12px" class="text-tenue">Modo: <b>'+esc(d.mode||'')+'</b> · '+
+    (d.count||0)+' hallazgos · Proyecto: <b>'+lines+'</b> líneas en '+(st.files||0)+' archivos'+
+    (d.jadx?'':' <span style="color:var(--warn,#FFB020)">(instala jadx para código Java + contexto)</span>')+
+    ' · APK: '+esc((d.apk||'').split(/[\\\\/]/).pop())+'</div>';
+  if(!d.results || !d.results.length){ out.innerHTML = head + '<p class="text-tenue">Nada por aquí. Prueba otro término o la cacería rápida.</p>'; return; }
+  let rows = '';
+  d.results.forEach((it,i)=>{
+    const isFlag = (it.type||'').indexOf('👽')===0;
+    const real = it.line && String(it.file).indexOf('(binario)')!==0;
+    const loc = it.line ? (esc(it.file)+':'+it.line) : esc(it.file);
+    rows += '<div style="border:1px solid var(--line,#243a2c);border-radius:10px;padding:9px 12px;margin:7px 0;'+
+      (isFlag?'background:rgba(46,232,110,.08);border-color:rgba(46,232,110,.5)':'')+'">'+
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+        '<span style="font-size:12px">'+esc(it.type)+'</span>'+
+        '<code style="color:#57FF97;font-weight:700">'+esc(it.value)+'</code>'+
+        (real?'<button class="btn" style="padding:2px 8px;font-size:11px" onclick="huntCtx('+i+')">🔎 contexto ±3</button>':'')+
+        '<span style="margin-left:auto;font-size:11px;opacity:.6">'+loc+'</span>'+
+      '</div>'+
+      (it.snippet && it.snippet!==it.value ? '<div style="font-size:11.5px;opacity:.7;margin-top:4px;font-family:monospace;white-space:pre-wrap;word-break:break-word">'+esc(it.snippet)+'</div>' : '')+
+      '<div id="ctx-'+i+'" data-open="0"></div>'+
+      '</div>';
+  });
+  out.innerHTML = head + rows;
+}
+async function huntCtx(i){
+  const it = (window.__hunt||[])[i]; if(!it) return;
+  const host = document.getElementById('ctx-'+i); if(!host) return;
+  if(host.dataset.open==='1'){ host.innerHTML=''; host.dataset.open='0'; return; }  // toggle
+  host.dataset.open='1';
+  host.innerHTML = '<div class="text-tenue" style="font-size:11px;padding:5px 0">cargando contexto…</div>';
+  const apk = document.getElementById('hunt-apk').value.trim();
+  const r = await API('/api/hunt/context', {method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({apk_path:apk, file:it.file, line:it.line, radius:3})});
+  if(!r.ok || (r.data && r.data.ok===false)){
+    host.innerHTML='<div class="text-danger" style="font-size:11px">'+esc((r.data&&r.data.message)||r.error||'sin contexto')+'</div>'; return;
+  }
+  const d=r.data; let h='<div style="font-family:monospace;font-size:11.5px;background:#081015;border:1px solid var(--line,#243a2c);border-radius:8px;padding:8px 10px;margin-top:6px;overflow-x:auto">';
+  h+='<div style="opacity:.5;font-size:10px;margin-bottom:4px">'+esc(d.file)+' · líneas '+d.from+'–'+d.to+' de '+d.total+'</div>';
+  for(const ln of (d.lines||[])){
+    h+='<div style="white-space:pre;'+(ln.hit?'background:rgba(46,232,110,.16);color:#57FF97;font-weight:700':'opacity:.72')+'">'+
+       '<span style="opacity:.5;display:inline-block;width:40px;text-align:right;margin-right:12px">'+ln.n+'</span>'+esc(ln.text||' ')+'</div>';
+  }
+  h+='</div>';
+  host.innerHTML=h;
+}
+
+/* ---------- adb ---------- */
+async function adbTest(){
+  const r = await API('/api/adb/test', {method:'POST'});
+  if(r.ok){ document.getElementById('adb-path').value = r.data.adb || ''; toast('adb: '+(r.data.version||'OK'),'ok'); }
+  else toast(r.error, 'err');
+}
+async function adbSet(){
+  const path = document.getElementById('adb-path').value.trim();
+  const r = await API('/api/adb/set', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path})});
+  if(r.ok){ toast('adb guardado','ok'); refreshState(); }
+  else toast(r.error,'err');
+}
+
+/* ---------- devices ---------- */
+async function loadDevices(){
+  const r = await API('/api/devices');
+  const list = r.ok ? r.data : [];
+  const box = document.getElementById('devs-list');
+  box.innerHTML = '';
+  if(!list.length){
+    box.innerHTML = '<div class="empty" style="padding:14px 4px"><div class="em-s">Sin dispositivos. Pulsa <strong>Auto-detectar</strong> o conecta Nox con <span class="kbd">adb connect 127.0.0.1:62001</span></div></div>';
+    refreshState();
+    return;
+  }
+  list.forEach(d => {
+    const row = document.createElement('div');
+    row.className = 'list-row' + (state.serial === d.serial ? ' active' : '');
+    const rootPill = d.root ? '<span class="pill">root</span>' : '';
+    const stateClass = d.state === 'device' ? 'device' : '';
+    const pick = (state.serial === d.serial) ? '<span class="pill" style="opacity:.8">elegido ✓</span>' : '<span class="lr-pick">clic para elegir →</span>';
+    row.innerHTML = '<div class="lr-title">'+esc(d.serial)+' <span class="lr-state '+stateClass+'">'+esc(d.state)+'</span> '+rootPill+'</div>'+
+      '<div class="lr-sub">'+esc(d.model||'')+' · API '+esc(d.api||'?')+' · '+esc(d.arch||'')+' '+pick+'</div>';
+    row.onclick = () => selectDevice(d.serial);
+    box.appendChild(row);
+  });
+  refreshState();
+}
+async function selectDevice(serial){
+  const r = await API('/api/devices/select', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serial})});
+  if(r.ok){ toast('Dispositivo: '+(serial||'auto'),'ok'); refreshState(); loadDevices(); loadPackages(); }
+  else toast(r.error,'err');
+}
+async function connectHost(){
+  const hp = document.getElementById('hostport').value.trim();
+  if(!hp){ toast('Indica host:port','warn'); return; }
+  const r = await API('/api/devices/connect', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hostport:hp})});
+  toast(r.ok ? (r.data.message||'conectado') : r.error, r.ok?'ok':'err');
+  loadDevices();
+}
+async function autoconnect(){
+  const r = await API('/api/devices/autoconnect', {method:'POST'});
+  if(r.ok){
+    const c = r.data.connected || [];
+    if(!c.length) toast('Ningún emulador respondió','warn');
+    c.forEach(x => toast(x.emulator+' → '+x.hostport,'ok'));
+    loadDevices();
+  } else toast(r.error,'err');
+}
+
+/* ---------- packages ---------- */
+async function loadPackages(){
+  const filt = document.getElementById('pkg-filter').value.trim();
+  const all = 0;
+  const r = await API('/api/packages?filter='+encodeURIComponent(filt)+'&all='+all);
+  const list = r.ok ? r.data : [];
+  const box = document.getElementById('pkgs-list');
+  box.innerHTML = '';
+  if(!list.length){
+    box.innerHTML = '<div class="empty" style="padding:10px 4px"><div class="em-s">Sin apps. Pulsa <strong>Listar apps</strong> o ajusta el filtro.</div></div>';
+    return;
+  }
+  list.slice(0, 200).forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'list-row' + (state.package === p ? ' active' : '');
+    row.innerHTML = '<div class="lr-title">'+esc(p)+'</div>';
+    row.onclick = () => selectTarget(p);
+    box.appendChild(row);
+  });
+  if(list.length > 200) box.innerHTML += '<div class="empty" style="padding:8px"><div class="em-s">… +'+(list.length-200)+' más (usa filtro)</div></div>';
+}
+async function selectTarget(pkg){
+  const r = await API('/api/target/select', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({package:pkg})});
+  if(r.ok){ state.package = pkg; state.access_mode = r.data.access_mode; toast('Target: '+pkg+' ('+(r.data.access_mode||'?')+')','ok'); refreshState(); loadPackages(); }
+  else toast(r.error,'err');
+}
+async function installApk(){
+  const path = prompt('Ruta completa a la APK en tu equipo:');
+  if(!path) return;
+  const r = await API('/api/packages/install', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path})});
+  toast((r.ok?'Instalado: ':'Falló: ')+(r.data && r.data.message || r.error), r.ok?'ok':'err');
+  loadPackages();
+}
+async function setMode(){
+  const mode = document.getElementById('mode-sel').value;
+  const r = await API('/api/mode', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode})});
+  if(r.ok){ state.mode = r.data.mode; state.access_mode = r.data.access_mode; refreshState(); }
+}
+
+/* ---------- recon ---------- */
+async function runInfo(){
+  const r = await API('/api/info');
+  const d = r.ok ? r.data : null;
+  const out = document.getElementById('info-out');
+  if(!d){ out.textContent = r.error || 'error'; out.className=''; return; }
+  out.className = '';
+  out.textContent = [
+    'Paquete     : '+(state.package||''),
+    'versionName : '+(d.versionName||'?'),
+    'debuggable : '+(d.debuggable?'SÍ':'NO'),
+    'run-as      : '+(d.run_as?'disponible':'NO disponible'),
+    'dataDir     : '+(d.dataDir||'?'),
+    'uid         : '+(d.uid||'?'),
+    'modo acceso : '+(d.access_mode||'?'),
+  ].join('\n');
+}
+
+/* ---------- components ---------- */
+async function runComponents(){
+  const r = await API('/api/components');
+  const box = document.getElementById('comps-out');
+  if(!r.ok){ box.innerHTML = '<pre>'+esc(r.error)+'</pre>'; return; }
+  const comps = r.data.components || [];
+  const exp = new Set(r.data.exported || []);
+  if(!comps.length){
+    box.innerHTML = '<div class="empty"><div class="em-ico">⊘</div><div class="em-t">Sin componentes</div><div class="em-s">No se detectaron componentes declarados.</div></div>';
+    return;
+  }
+  let h = '<table><thead><tr><th>Componente</th><th>Exportado</th></tr></thead><tbody>';
+  comps.forEach(c => {
+    const isExp = exp.has(c);
+    h += '<tr class="'+(isExp?'exported':'')+'"><td>'+c+'</td><td>'+(isExp?'<span class="badge-exported">SÍ → CWE-926</span>':'<span class="badge-exported badge-no">no</span>')+'</td></tr>';
+  });
+  h += '</tbody></table>';
+  if(exp.size) h += '<p style="color:var(--warn);font-size:11px;margin-top:10px;font-family:var(--sans)">⚠ '+exp.size+' componente(s) exportado(s) → accesibles desde otras apps (MASVS-PLATFORM).</p>';
+  box.innerHTML = h;
+}
+
+/* ---------- storage ---------- */
+async function runStorage(){
+  const r = await API('/api/storage');
+  const box = document.getElementById('storage-out');
+  if(!r.ok){ box.innerHTML = '<pre>'+esc(r.error)+'</pre>'; return; }
+  const d = r.data;
+  let h = '<div class="row mb-3"><span class="pill">modo: '+d.mode+'</span></div>';
+  h += '<h3 style="color:var(--accent);margin:8px 0 6px;font-size:12px;font-family:var(--mono)">SharedPreferences ('+d.prefs.length+')</h3>';
+  if(!d.prefs.length) h += '<p class="text-tenue" style="font-size:11px">(ninguna)</p>';
+  d.prefs.forEach(p => {
+    h += '<details><summary>shared_prefs/'+p.name+(p.secrets.length?' · <span class="badge-exported">'+p.secrets.length+' secretos</span>':'')+'</summary><div class="dbody"><pre style="max-height:220px;overflow:auto">'+esc(p.content)+'</pre></div></details>';
+  });
+  h += '<h3 style="color:var(--accent);margin:14px 0 6px;font-size:12px;font-family:var(--mono)">SQLite ('+d.dbs.length+')</h3>';
+  if(!d.dbs.length) h += '<p class="text-tenue" style="font-size:11px">(ninguna)</p>';
+  d.dbs.forEach(db => {
+    h += '<details><summary>databases/'+db.name+' (tablas: '+(db.tables||[]).join(', ')+')'+(db.secrets && db.secrets.length?' · <span class="badge-exported">'+db.secrets.length+' secretos</span>':'')+'</summary><div class="dbody"><pre style="max-height:320px;overflow:auto">'+esc(db.dump||db.error||'')+'</pre></div></details>';
+  });
+  h += '<h3 style="color:var(--accent);margin:14px 0 6px;font-size:12px;font-family:var(--mono)">Posibles secretos ('+d.findings.length+')</h3>';
+  if(d.findings.length){
+    h += '<table><thead><tr><th>Tipo</th><th>Origen</th><th>Valor</th></tr></thead><tbody>';
+    d.findings.forEach(f => { h += '<tr><td>'+f[1]+'</td><td>'+f[0]+'</td><td><span class="secret">'+esc(f[2])+'</span></td></tr>'; });
+    h += '</tbody></table>';
+  } else h += '<p class="text-tenue" style="font-size:11px">(ninguno con los patrones actuales)</p>';
+  h += '<p class="text-tenue" style="font-size:11px;margin-top:10px">Botín guardado en: <span class="kbd">'+d.loot_dir+'</span></p>';
+  box.innerHTML = h;
+}
+function esc(s){ return (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+/* ---------- launch ---------- */
+async function runLaunch(){
+  const act = document.getElementById('launch-act').value.trim();
+  const ek = document.getElementById('launch-ek').value.trim();
+  const ev = document.getElementById('launch-ev').value.trim();
+  const ei = ek ? [[ek,ev]] : [];
+  const r = await API('/api/launch', {method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({activity:act, ei, es:[]})});
+  const out = document.getElementById('launch-out');
+  out.className = '';
+  if(!r.ok){ out.textContent = r.error; return; }
+  const d = r.data;
+  out.textContent = '['+d.verdict+']\n'+d.output;
+  if(d.verdict === 'ok') toast('Activity lanzada. ¿Abrió sin login? → IDOR/exported (MASVS-AUTHZ)','warn');
+  if(d.verdict === 'denied') toast('Permission Denial → NO exportada','err');
+}
+
+/* ---------- screenshot ---------- */
+async function runScreenshot(){
+  const box = document.getElementById('shot-out');
+  box.innerHTML = '<div class="empty"><span class="spinner"></span> Capturando…</div>';
+  const r = await API('/api/screenshot');
+  if(!r.ok){ box.innerHTML = '<pre>'+esc(r.error)+'</pre>'; return; }
+  const name = (r.data.saved||'captura.png').split(/[\\\\/]/).pop();
+  const url = '/api/loot/'+encodeURIComponent(name);   // URL normal (no data:) para poder abrirla
+  box.innerHTML =
+    '<div class="panel-actions" style="margin:2px 0 10px">'+
+      '<a class="btn primary" download="'+esc(name)+'" href="'+url+'">⬇ Descargar PNG</a>'+
+      '<a class="btn" target="_blank" rel="noopener" href="'+url+'">🔍 Abrir a tamaño completo</a>'+
+    '</div>'+
+    '<a href="'+url+'" target="_blank" rel="noopener" title="Clic para ver a tamaño completo">'+
+      '<img src="'+url+'" style="max-width:340px;width:100%;border:1px solid var(--line);border-radius:10px;cursor:zoom-in" /></a>'+
+    '<p class="text-tenue" style="font-size:11px;margin-top:8px;font-family:var(--mono)">Guardada en: '+esc(r.data.saved||'')+'</p>'+
+    '<p class="text-tenue" style="font-size:11.5px;margin-top:2px">Tip (F3): ábrela a tamaño completo y mira la marca de agua bajo el saldo — ahí está el flag.</p>';
+}
+
+/* ---------- logcat ---------- */
+async function runLogcat(){
+  const lines = document.getElementById('log-lines').value || '200';
+  const out = document.getElementById('logcat-out');
+  out.className = '';
+  out.textContent = 'Leyendo logcat…';
+  const r = await API('/api/logcat?lines='+lines);
+  out.textContent = r.ok ? (r.data.lines||'(sin logs)') : r.error;
+}
+
+/* ---------- frida ---------- */
+async function fridaStatus(){
+  const r = await API('/api/frida/status');
+  const box = document.getElementById('frida-status');
+  if(!r.ok){ box.textContent = r.error; return; }
+  const d = r.data;
+  // Estado en el panel lateral
+  if(d.available && d.running){
+    box.innerHTML = '✓ frida-server corriendo <span class="text-tenue">(v'+d.version+')</span>';
+  } else if(d.available && !d.running){
+    box.innerHTML = '✗ frida-server NO responde <span class="text-tenue">(pulsa «Iniciar frida-server»)</span>';
+  } else {
+    box.innerHTML = '✗ frida no instalado en el venv <span class="text-tenue">(ejecuta setup_frida.py con el venv)</span>';
+  }
+  // Chip de la barra superior: ok | warn | bad + tooltip
+  const chip = document.getElementById('st-frida');
+  let kind, label, title;
+  if(!d.available){ kind='bad';  label='frida ✗'; title='frida-tools no instalado en el venv. Ejecuta setup_frida.py con el venv Python.'; }
+  else if(d.running){ kind='ok'; label='frida ✓'; title='frida-server corriendo en el device. Listo para spawn/attach.'; }
+  else { kind='warn'; label='frida (off)'; title='frida instalado en venv pero server no corre en el device. Pulsa «Iniciar frida-server».'; }
+  chip.innerHTML = '<span class="dot"></span>'+label;
+  chip.className = 'chip ' + kind;
+  chip.setAttribute('title', title);
+}
+async function fridaServerStart(){
+  toast('Iniciando frida-server (puede tardar ~30s)…','warn');
+  const r = await API('/api/frida/server/start', {method:'POST'});
+  if(r.ok){
+    const d = r.data || {};
+    if(d.running){
+      toast('frida-server listo (v'+d.version+')','ok');
+      fridaStatus();
+    } else {
+      // No arranco: mostrar diagnostico completo en el panel frida-status
+      const box = document.getElementById('frida-status');
+      let html = '<div style="color:var(--danger);font-weight:600">✗ frida-server NO responde</div>';
+      if(d.diagnostic){
+        html += '<pre style="margin-top:6px;padding:8px;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;overflow:auto;max-height:200px;font-size:11px;white-space:pre-wrap">'+d.diagnostic+'</pre>';
+      }
+      if(d.error){ html += '<div style="margin-top:4px;color:var(--text-2)">server_status: '+d.error.split('\n')[0]+'</div>'; }
+      box.innerHTML = html;
+      toast('frida-server no arranco — mira el panel de diagnostico','err');
+    }
+  } else {
+    toast(r.error,'err');
+  }
+}
+
+/* ---------- presets ---------- */
+async function loadPresets(){
+  if(PRESETS.length) { renderPresets(); return; }
+  const r = await API('/api/presets');
+  PRESETS = r.ok ? (r.data||[]) : [];
+  renderPresets();
+}
+function renderPresets(){
+  const grid = document.getElementById('presets-grid');
+  grid.innerHTML = '';
+  PRESETS.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'preset' + (p.id==='root_bypass'?' featured':'');
+    // Tooltip corto = desc; help largo en el "?" (popover).
+    // El CLI con botón Copiar se muestra en la tarjeta misma (SOLUCION_FRIDA v3.2 TAREA A).
+    const cli = p.cli ? (p.cli.replace(/<pkg>/g, state.package||'<pkg>')) : '';
+    el.setAttribute('data-tip', p.desc || '');
+    el.innerHTML =
+      '<div class="ttl">'+p.title+
+        (p.help?' <span class="qicon" data-help-preset="'+p.id+'" title="'+(p.desc||'').replace(/"/g,'&quot;')+'">?</span>':'')+
+      '</div>'+
+      '<div class="desc">'+p.desc+'</div>'+
+      (cli ? '<div class="cli-box mt-2"><input value="'+cli.replace(/"/g,'&quot;')+'" readonly />'+
+             '<button class="btn small ghost" onclick="event.stopPropagation();copyPresetCli(this,\''+p.id+'\')" title="Copiar comando">⧉</button></div>' : '')+
+      '<div class="ft"><span class="type">'+p.type+'</span><span class="masvs">'+p.masvs+'</span></div>';
+    el.onclick = () => selectPreset(p);
+    grid.appendChild(el);
+  });
+}
+function copyPresetCli(btn, pid){
+  const preset = PRESETS.find(p => p.id === pid);
+  if(!preset || !preset.cli) return;
+  const v = preset.cli.replace(/<pkg>/g, state.package||'<pkg>');
+  navigator.clipboard.writeText(v).then(()=>toast('Comando copiado:\n'+v,'ok'),()=>toast('No pude copiar','err'));
+}
+function selectPreset(p){
+  activePreset = p;
+  const box = document.getElementById('preset-params');
+  const fields = document.getElementById('preset-params-fields');
+  document.getElementById('preset-empty').classList.add('hidden');
+  box.classList.remove('hidden');
+  let h = '<div style="color:var(--accent);margin-bottom:6px;font-size:13px;font-weight:600">'+p.title+'</div>';
+  h += '<div class="text-muted" style="font-size:11px;margin-bottom:10px">'+p.desc+'</div>';
+  if(p.help){
+    h += '<div class="helpbox">'+p.help+'</div>';
+  }
+  (p.params||[]).forEach(pr => {
+    h += '<div class="field"><label>'+pr.label+'</label><input id="pp-'+pr.name+'" value="'+(pr.default||'')+'" placeholder="'+(pr.placeholder||'')+'" /></div>';
+  });
+  if(p.cli){
+    h += '<div class="field"><label>Comando CLI equivalente</label>'+
+      '<div class="cli-box"><input id="pp-cli" value="'+p.cli.replace(/"/g,'&quot;')+'" readonly />'+
+      '<button class="btn small ghost" onclick=\'copyCli()\'>Copiar</button></div></div>';
+  }
+  fields.innerHTML = h;
+}
+function copyCli(){
+  const v = document.getElementById('pp-cli').value.replace(/<pkg>/g, state.package||'<pkg>');
+  navigator.clipboard.writeText(v).then(()=>toast('Comando copiado','ok'),()=>toast('No pude copiar','err'));
+}
+function clearActivePreset(){
+  activePreset = null;
+  document.getElementById('preset-params').classList.add('hidden');
+  document.getElementById('preset-empty').classList.remove('hidden');
+}
+async function runPreset(){
+  if(!activePreset) return;
+  if(!state.package){
+    toast('Selecciona una app primero (clic en un paquete de la lista «App objetivo»)','err');
+    return;
+  }
+  // Chequeo previo para presets que usan frida (spawn/attach): si frida-server
+  // no responde, no lanzamos el spawn (evita el error confuso "need Gadget").
+  const isFrida = (activePreset.type||'').startsWith('F') || (activePreset.type||'').startsWith('F·');
+  if(isFrida){
+    const st = await API('/api/frida/status');
+    if(st.ok && st.data && !st.data.running){
+      toast('frida-server no responde. Pulsa «Iniciar frida-server» primero (pestaña Frida).','err');
+      tab('frida');
+      return;
+    }
+  }
+  // Confirmacion visual del target que se va a usar
+  toast('Ejecutando «'+activePreset.title+'» sobre '+state.package,'ok');
+  const params = {};
+  (activePreset.params||[]).forEach(pr => { params[pr.name] = document.getElementById('pp-'+pr.name).value; });
+  const r = await API('/api/frida/preset', {method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id:activePreset.id, params})});
+  if(!r.ok){ toast(r.error,'err'); return; }
+  if(r.data && r.data.action){
+    handleCoreResult(r.data);
+    return;
+  }
+  if(r.data && r.data.session_id){
+    activeSession = r.data.session_id;
+    pollIdx = 0;
+    document.getElementById('sess-status').innerHTML = '<span class="dot"></span>sesión: '+activeSession+' ('+activePreset.id+')';
+    document.getElementById('sess-status').className = 'chip ok';
+    startPolling(activeSession);
+    toast('Sesión Frida iniciada: '+activeSession,'ok');
+  } else {
+    toast('Preset ejecutado','ok');
+  }
+}
+function handleCoreResult(d){
+  if(d.action === 'storage'){ tab('storage'); runStorage(); }
+  else if(d.action === 'screenshot'){
+    tab('capture');
+    document.getElementById('shot-out').innerHTML = '<div class="imgwrap"><img src="data:image/png;base64,'+d.png_base64+'" /></div><p class="text-tenue" style="font-size:11px;margin-top:6px;font-family:var(--mono)">'+d.saved+'</p>';
+  }
+  else if(d.action === 'data_tree'){
+    tab('frida');
+    appendConsole('=== Árbol de datos ===', 'meta');
+    (d.tree||'').split('\n').forEach(l => appendConsole(l, ''));
+  }
+  else if(d.action === 'launch'){
+    tab('frida');
+    appendConsole('['+d.verdict+'] '+d.output, d.verdict==='ok'?'ok':'warn');
+  }
+  else if(d.action === 'deep_link'){
+    tab('frida');
+    appendConsole('Deep link: '+d.output, 'ok');
+  }
+  else if(d.action === 'app_logs'){
+    tab('logcat');
+    document.getElementById('logcat-out').textContent = d.logs || '(sin logs)';
+  }
+  else if(d.action === 'pull_apk'){
+    tab('frida');
+    appendConsole('APK extraído: '+(d.saved||''), 'ok');
+    appendConsole('Ruta en device: '+(d.apk_device||''), '');
+    toast('APK guardado en '+d.saved, 'ok');
+  }
+  else if(d.action === 'static_scan'){
+    tab('frida');
+    appendConsole('=== Quick-scan estático del APK ===', 'meta');
+    appendConsole('debuggable:  '+(d.debuggable?'SÍ  (MASVS-RESILIENCE, CWE-489)':'no'), d.debuggable?'warn':'');
+    appendConsole('allowBackup: '+(d.allow_backup?'SÍ  (MASVS-STORAGE, CWE-530)':'no'), d.allow_backup?'warn':'');
+    if((d.dangerous||[]).length){ appendConsole('Permisos peligrosos ('+d.dangerous.length+'):', 'meta'); d.dangerous.forEach(p => appendConsole('   '+p, 'warn')); }
+    if((d.exported||[]).length){ appendConsole('Componentes exportados: '+d.exported.length, 'meta'); }
+    if((d.secrets||[]).length){ appendConsole('Secretos/flags en el binario:', 'meta'); d.secrets.forEach(s => appendConsole('   ['+s[0]+'] '+s[1], 'ok')); }
+    if((d.urls||[]).length){ appendConsole('URLs embebidas ('+d.urls.length+'):', 'meta'); d.urls.slice(0,30).forEach(u => appendConsole('   '+u, '')); }
+    if(d.apk) appendConsole('APK: '+d.apk, '');
+    refreshLedger();
+  }
+  else if(d.action === 'storage_diff'){
+    tab('frida');
+    if(d.phase === 'antes'){
+      appendConsole('=== Snapshot ANTES tomado: '+d.count+' archivos. Ahora haz la acción en la app (login, transferencia…) y vuelve a ejecutar este preset con fase = despues. ===', 'meta');
+    } else {
+      appendConsole('=== Diff de almacenamiento (después) ===', 'meta');
+      (d.added||[]).forEach(p => appendConsole('NUEVO:       '+p, 'ok'));
+      (d.changed||[]).forEach(p => appendConsole('MODIFICADO:  '+p, 'warn'));
+      (d.removed||[]).forEach(p => appendConsole('ELIMINADO:   '+p, ''));
+      if(!(d.added||[]).length && !(d.changed||[]).length && !(d.removed||[]).length)
+        appendConsole('(sin cambios detectados)', '');
+    }
+    refreshLedger();
+  }
+  else if(d.action === 'providers'){
+    tab('frida');
+    appendConsole('=== Content Providers ===', 'meta');
+    if((d.providers||[]).length){ d.providers.forEach(a => appendConsole('authority: '+a, 'ok')); }
+    else appendConsole('(no se detectaron authorities)', 'warn');
+    if(d.query && d.query.uri){
+      appendConsole('content query --uri '+d.query.uri+' :', 'meta');
+      (d.query.rows||'(sin filas)').split('\n').forEach(l => appendConsole(l, ''));
+    }
+    refreshLedger();
+  }
+  else if(d.action === 'signature_info'){
+    tab('frida');
+    appendConsole('=== Firma del APK ===', 'meta');
+    (d.info||'').split('\n').forEach(l => appendConsole(l, ''));
+  }
+  else if(d.action === 'audit'){
+    showAudit(d);
+  }
+  else toast('Acción core: '+d.action,'ok');
+}
+
+/* ---------- consola en vivo (polling) ---------- */
+function appendConsole(line, kind){
+  const c = document.getElementById('console');
+  const div = document.createElement('div');
+  div.className = 'ln' + (kind?(' '+kind):'');
+  div.textContent = line;
+  c.appendChild(div);
+  if(document.getElementById('autoscroll').checked) c.scrollTop = c.scrollHeight;
+}
+function clearConsole(){ document.getElementById('console').innerHTML = ''; }
+async function startPolling(sid){
+  if(pollTimer) clearInterval(pollTimer);
+  pollIdx = 0;
+  pollTimer = setInterval(async () => {
+    const r = await API('/api/frida/output?session='+sid+'&since='+pollIdx);
+    if(!r.ok) return;
+    const d = r.data;
+    (d.lines||[]).forEach(ln => {
+      const kind = ln.startsWith('[error]')?'err':(ln.startsWith('[+]')?'ok':(ln.startsWith('[warn]')||ln.startsWith('[!]'))?'warn':'');
+      appendConsole(ln, kind);
+    });
+    pollIdx = d.next;
+    if(d.status === 'stopped' || d.status === 'detached' || d.status === 'error' || d.status === 'missing'){
+      appendConsole('[i] sesión '+d.status, 'meta');
+      clearInterval(pollTimer); pollTimer = null;
+      document.getElementById('sess-status').innerHTML = '<span class="dot"></span>sesión: '+d.status;
+      document.getElementById('sess-status').className = 'chip warn';
+    }
+  }, 800);
+}
+async function stopSession(){
+  if(!activeSession){ toast('Sin sesión activa','warn'); return; }
+  const r = await API('/api/frida/stop', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:activeSession})});
+  toast(r.ok?'Sesión detenida':r.error, r.ok?'ok':'err');
+}
+async function trafficStop(){
+  const r = await API('/api/traffic/stop', {method:'POST'});
+  toast(r.ok ? ('Proxy quitado'+(r.data.mitm_killed?' + mitm detenido':'')) : r.error, r.ok?'ok':'err');
+}
+
+async function fridaReactivate(){
+  toast('Reactivando frida-server (chmod + noexec + setsid + verify)…','warn');
+  const r = await API('/api/frida/reactivate', {method:'POST'});
+  if(r.ok && r.data){
+    if(r.data.running){
+      toast('frida-server reactivado (v'+r.data.version+')','ok');
+      fridaStatus();
+    } else {
+      const box = document.getElementById('frida-status');
+      let html = '<div style="color:var(--danger);font-weight:600">✗ no se pudo reactivar</div>';
+      if(r.data.log) html += '<pre style="margin-top:6px;padding:8px;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;overflow:auto;max-height:200px;font-size:11px;white-space:pre-wrap">'+esc(r.data.log)+'</pre>';
+      if(r.data.error) html += '<div style="margin-top:4px;color:var(--text-2)">'+esc(r.data.error.split('\n')[0])+'</div>';
+      box.innerHTML = html;
+      toast('Reactivar falló — mira el panel Frida','err');
+    }
+  } else toast(r.error||'error','err');
+}
+
+/* ---------- report / audit ---------- */
+async function runReport(){
+  const out = document.getElementById('report-out');
+  out.className = '';
+  out.textContent = 'Generando informe…';
+  const r = await API('/api/report', {method:'POST'});
+  if(!r.ok){ out.textContent = r.error; return; }
+  out.textContent = r.data.content;
+  const dl = document.getElementById('dl-report');
+  dl.style.display = '';
+  dl.onclick = () => window.open('/api/report/download?package='+encodeURIComponent(state.package||''), '_blank');
+  toast('Informe generado','ok');
+}
+async function runAudit(){
+  toast('Auditoría completa en marcha…','warn');
+  const r = await API('/api/audit', {method:'POST'});
+  if(!r.ok){ toast(r.error,'err'); return; }
+  showAudit(r.data);
+}
+function showAudit(d){
+  const out = document.getElementById('report-out');
+  out.className = '';
+  out.textContent = d.report || '(sin informe)';
+  tab('report');
+  const dl = document.getElementById('dl-report');
+  dl.style.display = '';
+  dl.onclick = () => window.open('/api/report/download?package='+encodeURIComponent(state.package||''), '_blank');
+  toast('Auditoría completa: '+(d.exported||[]).length+' exported, '+(d.findings||[]).length+' secretos','ok');
+  refreshLedger();
+}
+
+/* ---------- informe acumulativo (ledger) ---------- */
+const SEVCOLOR = {'Crítica':'#ff6b6b','Alta':'#ff9f43','Media':'#f5b74e','Baja':'#39d0d8','Info':'#8a9a91'};
+async function refreshLedger(){
+  const box = document.getElementById('ledger');
+  if(!box) return;
+  const r = await API('/api/report/log');
+  if(!r.ok){ return; }
+  const items = (r.data && r.data.entries) || [];
+  if(!items.length){
+    box.innerHTML = '<div class="text-tenue" style="padding:10px 0">Aún no hay hallazgos. Ejecuta una acción (bypass, almacenamiento, IDOR, captura…) y aparecerán aquí.</div>';
+    return;
+  }
+  let html = '<div style="font-size:12px;color:var(--text-3);margin-bottom:8px">'+items.length+' hallazgo(s) registrado(s)</div>';
+  items.forEach((e,i) => {
+    const col = SEVCOLOR[e.severidad]||'#8a9a91';
+    html += '<div style="border:1px solid var(--border);border-left:3px solid '+col+';border-radius:8px;padding:10px 12px;margin:8px 0;background:var(--panel)">'
+      + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      + '<b style="font-size:14px">'+(i+1)+'. '+esc(e.titulo)+'</b>'
+      + '<span style="font-size:11px;font-weight:700;color:'+col+';border:1px solid '+col+';border-radius:999px;padding:1px 8px">'+esc(e.severidad||'Info')+'</span>'
+      + (e.masvs && e.masvs!=='-' ? '<span style="font-size:11px;font-family:var(--mono);color:var(--text-3)">'+esc(e.masvs)+'</span>' : '')
+      + '<span style="font-size:11px;color:var(--text-3);margin-left:auto">'+esc(e.ts||'')+'</span>'
+      + '</div>';
+    if(e.hallazgo) html += '<div style="font-size:13px;margin-top:6px">'+esc(e.hallazgo)+'</div>';
+    if(e.app_real) html += '<div style="font-size:12.5px;margin-top:6px;color:var(--accent,#38e07b)"><b>En app real:</b> '+esc(e.app_real)+'</div>';
+    if(e.evidencia) html += '<pre style="margin:8px 0 0;font-size:11.5px;max-height:120px;overflow:auto">'+esc(e.evidencia)+'</pre>';
+    html += '</div>';
+  });
+  box.innerHTML = html;
+}
+function esc(s){ return (s==null?'':(''+s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function downloadLedger(){
+  window.open('/api/report/log/download', '_blank');
+  toast('Descargando informe .md','ok');
+}
+function downloadLedgerHtml(){
+  window.open('/api/report/log/download?format=html', '_blank');
+  toast('Descargando informe .html (ábrelo y usa Imprimir → Guardar como PDF)','ok');
+}
+async function addNote(){
+  const inp = document.getElementById('note-input');
+  const t = (inp.value||'').trim();
+  if(!t){ toast('Escribe una nota','warn'); return; }
+  const r = await API('/api/report/log/note', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});
+  if(r.ok){ inp.value=''; toast('Nota añadida','ok'); refreshLedger(); } else toast(r.error,'err');
+}
+async function clearLedger(){
+  if(!confirm('¿Vaciar todos los hallazgos del informe?')) return;
+  const r = await API('/api/report/log/clear', {method:'POST'});
+  if(r.ok){ toast('Informe vaciado','ok'); refreshLedger(); }
+}
+
+/* ---------- bootstrap automatico ---------- */
+async function bootstrap(){
+  await loadHelp();                 // v3.2: catálogo de ayuda + guías + frida_info
+  await refreshState();
+  const st = await API('/api/adb/status');
+  if(st.ok && st.data.adb) document.getElementById('adb-path').value = st.data.adb;
+  document.getElementById('hostport').value = '127.0.0.1:62001';
+  fridaStatus();
+  // v3.3: NO pre-conecta. Solo LISTA lo detectado; el usuario ELIGE con un clic.
+  await loadDevices();
+  const n = document.getElementById('devs-list').querySelectorAll('.list-row').length;
+  if(n){
+    toast('Detectado(s) '+n+' dispositivo(s). Haz clic en uno para elegirlo.','warn');
+  } else {
+    toast('Sin dispositivos. Enciende el emulador y pulsa «Auto-detectar» (o «Refrescar»).','warn');
+  }
+  // No auto-selecciona, no autoconnecta, no lista apps: todo lo decides tú.
+}
+
+async function refreshDevices(){
+  await loadDevices();   // solo re-lee y muestra; NO elige por ti
+  const n = document.getElementById('devs-list').querySelectorAll('.list-row').length;
+  toast(n ? ('Dispositivos: '+n+'. Haz clic en uno para elegirlo.')
+          : 'Sin dispositivos. Enciende el emulador o pulsa «Auto-detectar».',
+        n ? 'ok' : 'warn');
+}
+
+(async function init(){ renderTabIntro('recon'); await bootstrap(); })();
+</script>
+</body>
+</html>

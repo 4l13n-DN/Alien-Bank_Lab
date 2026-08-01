@@ -1,0 +1,462 @@
+{
+  "_comment": "Catalogo data-driven de presets DynADB v3.1. Cada preset trae 'help' (que hace, didactico) y 'cli' (comando limpio equivalente por consola; <pkg> se sustituye por el target). type: spawn|attach|core|custom.",
+  "presets": [
+    {
+      "id": "root_bypass",
+      "title": "Abrir con bypass de root",
+      "type": "spawn",
+      "scripts": [
+        "root_bypass.js"
+      ],
+      "desc": "Spawnea la app con root_bypass.js antes de que corra.",
+      "help": "Abre apps que se cierran al detectar root (como Banco Alien). Se inyecta el hook ANTES de que la app arranque, engañando a File.exists()/Runtime.exec()/RootBeer para que digan que el dispositivo no esta rooteado.",
+      "cli": "frida -U -f <pkg> -l frida_scripts/root_bypass.js",
+      "params": [],
+      "masvs": "RESILIENCE"
+    },
+    {
+      "id": "ssl_unpin",
+      "title": "Bypass SSL pinning",
+      "type": "attach",
+      "scripts": [
+        "ssl_unpin.js"
+      ],
+      "desc": "Salta el certificate pinning (OkHttp, SSLContext).",
+      "help": "Desactiva el 'pinning' de certificados para que puedas interceptar el trafico HTTPS con un proxy. Hookea okhttp3.CertificatePinner y pone un TrustManager permisivo.",
+      "cli": "frida -U -n <pkg> -l frida_scripts/ssl_unpin.js",
+      "params": [],
+      "masvs": "NETWORK"
+    },
+    {
+      "id": "antifrida_off",
+      "title": "Bypass anti-Frida / anti-debug",
+      "type": "attach",
+      "scripts": [
+        "antifrida_off.js"
+      ],
+      "desc": "Desactiva la deteccion de Frida/debugger.",
+      "help": "Algunas apps se cierran si detectan Frida o un debugger. Este hook fuerza esas comprobaciones a 'false' para poder instrumentarlas.",
+      "cli": "frida -U -n <pkg> -l frida_scripts/antifrida_off.js",
+      "params": [],
+      "masvs": "RESILIENCE"
+    },
+    {
+      "id": "banking_combo",
+      "title": "Bypass combinado (banca)",
+      "type": "spawn",
+      "scripts": [
+        "root_bypass.js",
+        "ssl_unpin.js",
+        "antifrida_off.js"
+      ],
+      "desc": "root + ssl + antifrida en un solo inicio.",
+      "help": "Para apps de banca con varias defensas: abre saltando root, quita el pinning y desactiva anti-Frida, todo al arrancar. Es el 'todo en uno' para empezar a analizar una app endurecida.",
+      "cli": "frida -U -f <pkg> -l frida_scripts/root_bypass.js -l frida_scripts/ssl_unpin.js -l frida_scripts/antifrida_off.js",
+      "params": [],
+      "masvs": "RESILIENCE/NETWORK"
+    },
+    {
+      "id": "crypto_trace",
+      "title": "Trazar criptografia",
+      "type": "attach",
+      "scripts": [
+        "crypto_trace.js"
+      ],
+      "desc": "Registra Cipher/SecretKeySpec.",
+      "help": "Muestra en vivo cuando la app cifra/descifra: algoritmo, longitud y las claves (SecretKeySpec). Sirve para ver como protege (o no) los datos sensibles.",
+      "cli": "frida -U -n <pkg> -l frida_scripts/crypto_trace.js",
+      "params": [],
+      "masvs": "CRYPTO"
+    },
+    {
+      "id": "http_trace",
+      "title": "Trazar URLs HTTP (sin proxy)",
+      "type": "attach",
+      "scripts": [
+        "http_trace.js"
+      ],
+      "desc": "Registra las URLs que abre la app.",
+      "help": "Lista las URLs que la app consulta, hookeando java.net.URL y OkHttp. Util para mapear los endpoints sin montar un proxy.",
+      "cli": "frida -U -n <pkg> -l frida_scripts/http_trace.js",
+      "params": [],
+      "masvs": "NETWORK"
+    },
+    {
+      "id": "prefs_monitor",
+      "title": "Monitor de SharedPreferences",
+      "type": "attach",
+      "scripts": [
+        "prefs_monitor.js"
+      ],
+      "desc": "Muestra que guarda la app en prefs (runtime).",
+      "help": "Cada vez que la app escribe en SharedPreferences veras la clave y el valor. Ideal para pillar tokens/PIN guardados en claro (como la flag F2 de Banco Alien).",
+      "cli": "frida -U -n <pkg> -l frida_scripts/prefs_monitor.js",
+      "params": [],
+      "masvs": "STORAGE"
+    },
+    {
+      "id": "clipboard_monitor",
+      "title": "Monitor de portapapeles",
+      "type": "attach",
+      "scripts": [
+        "clipboard_monitor.js"
+      ],
+      "desc": "Detecta datos copiados al portapapeles.",
+      "help": "Registra lo que la app copia al portapapeles (setPrimaryClip). Muchas apps copian contrasenas/numeros de tarjeta, que otras apps pueden leer.",
+      "cli": "frida -U -n <pkg> -l frida_scripts/clipboard_monitor.js",
+      "params": [],
+      "masvs": "STORAGE"
+    },
+    {
+      "id": "webview_inspect",
+      "title": "Inspeccionar WebView",
+      "type": "attach",
+      "scripts": [
+        "webview_inspect.js"
+      ],
+      "desc": "URLs y puentes JS de WebView.",
+      "help": "Muestra las URLs que carga un WebView y si expone puentes JavaScript (addJavascriptInterface), un vector clasico de RCE en apps hibridas.",
+      "cli": "frida -U -n <pkg> -l frida_scripts/webview_inspect.js",
+      "params": [],
+      "masvs": "PLATFORM"
+    },
+    {
+      "id": "flagsecure_off",
+      "title": "Permitir capturas (quitar FLAG_SECURE)",
+      "type": "attach",
+      "scripts": [
+        "flagsecure_off.js"
+      ],
+      "desc": "Elimina FLAG_SECURE.",
+      "help": "Muchas apps bloquean las capturas de pantalla con FLAG_SECURE. Este hook lo quita para poder documentar la evidencia (relacionado con la flag F3 de Banco Alien).",
+      "cli": "frida -U -n <pkg> -l frida_scripts/flagsecure_off.js",
+      "params": [],
+      "masvs": "PLATFORM"
+    },
+    {
+      "id": "method_trace",
+      "title": "Trazar metodos de una clase",
+      "type": "attach",
+      "scripts": [
+        "method_trace.js"
+      ],
+      "desc": "Hookea todos los metodos de la clase indicada.",
+      "help": "Registra cada llamada a los metodos de la clase que indiques, con sus argumentos. Perfecto para entender la logica (login, validaciones) en tiempo real.",
+      "cli": "frida -U -n <pkg> -l frida_scripts/method_trace.js   (edita CLASE en el .js o usa el campo Clase)",
+      "params": [
+        {
+          "name": "class",
+          "label": "Clase (FQCN)",
+          "default": "com.taller.bancoalien.ui.LoginActivity",
+          "placeholder": "com.example.app.Clase"
+        }
+      ],
+      "masvs": "analisis"
+    },
+    {
+      "id": "enum_classes",
+      "title": "Enumerar clases cargadas / buscar",
+      "type": "attach",
+      "scripts": [],
+      "inline_js": "Java.perform(function(){ var filt=\"%FILTER%\"; var n=0; Java.enumerateLoadedClasses({onMatch:function(c){ if(!filt||c.toLowerCase().indexOf(filt.toLowerCase())>=0){console.log(\"[class] \"+c);n++;} },onComplete:function(){console.log(\"[class] total: \"+n);}}); });",
+      "desc": "Lista las clases cargadas (filtro opcional).",
+      "help": "Enumera las clases Java cargadas en el proceso; con un filtro (ej. 'com.taller') encuentras rapido las clases propias de la app para luego hookearlas.",
+      "cli": "frida -U -n <pkg> -e 'Java.perform(()=>Java.enumerateLoadedClasses({onMatch:c=>console.log(c),onComplete:()=>{}}))'",
+      "params": [
+        {
+          "name": "filter",
+          "label": "Filtro (opcional)",
+          "default": "",
+          "placeholder": "com.taller"
+        }
+      ],
+      "masvs": "recon"
+    },
+    {
+      "id": "extract_storage",
+      "title": "Extraer almacenamiento",
+      "type": "core",
+      "action": "storage",
+      "desc": "prefs + SQLite (root/run-as), secretos resaltados.",
+      "help": "Saca las SharedPreferences y las bases SQLite privadas de la app y las escanea buscando secretos (tokens, flags, claves). En modo root funciona hasta con apps release.",
+      "cli": "python dynadb.py storage <pkg> --mode auto",
+      "params": [],
+      "masvs": "STORAGE"
+    },
+    {
+      "id": "data_tree",
+      "title": "Arbol de datos de la app",
+      "type": "core",
+      "action": "data_tree",
+      "desc": "ls -R /data/data/<pkg>.",
+      "help": "Lista todos los archivos privados de la app (bases, prefs, caches, archivos). Te da el mapa de donde buscar datos sensibles.",
+      "cli": "adb shell su -c 'ls -R /data/data/<pkg>'   (o: adb exec-out run-as <pkg> ls -R)",
+      "params": [],
+      "masvs": "STORAGE"
+    },
+    {
+      "id": "test_idor",
+      "title": "Probar exported / IDOR",
+      "type": "core",
+      "action": "launch",
+      "desc": "am start con extras (ej. accountId=2).",
+      "help": "Lanza una activity con parametros para probar acceso indebido: si abre la cuenta de otro usuario cambiando el ID, es un IDOR (flag F5 de Banco Alien). Numeros van como --ei, texto como --es (se detecta solo).",
+      "cli": "adb shell am start -n <pkg>/.ui.AccountActivity --ei accountId 2",
+      "params": [
+        {
+          "name": "activity",
+          "label": "Activity",
+          "default": ".ui.AccountActivity",
+          "placeholder": ".ui.AccountActivity"
+        },
+        {
+          "name": "extra_key",
+          "label": "Extra key",
+          "default": "accountId",
+          "placeholder": "accountId"
+        },
+        {
+          "name": "extra_val",
+          "label": "Extra value",
+          "default": "2",
+          "placeholder": "2"
+        }
+      ],
+      "masvs": "PLATFORM/AUTHZ"
+    },
+    {
+      "id": "deep_link",
+      "title": "Probar deep link",
+      "type": "core",
+      "action": "deep_link",
+      "desc": "am start VIEW con una URI.",
+      "help": "Abre un enlace profundo (esquema/host) en la app para probar si acepta URIs no confiables sin validarlas (inyeccion via deep link).",
+      "cli": "adb shell am start -W -a android.intent.action.VIEW -d <uri> <pkg>",
+      "params": [
+        {
+          "name": "uri",
+          "label": "URI",
+          "default": "",
+          "placeholder": "bancoalien://open?x=1"
+        }
+      ],
+      "masvs": "PLATFORM"
+    },
+    {
+      "id": "app_logs",
+      "title": "Ver logs de la app",
+      "type": "core",
+      "action": "app_logs",
+      "desc": "logcat filtrado por la app.",
+      "help": "Muestra el logcat de la app. Muchas apps loguean datos sensibles (tokens, respuestas) por descuido; aqui se ven.",
+      "cli": "adb logcat -d --pid $(adb shell pidof -s <pkg>)",
+      "params": [],
+      "masvs": "STORAGE"
+    },
+    {
+      "id": "pull_apk",
+      "title": "Extraer el APK del dispositivo",
+      "type": "core",
+      "action": "pull_apk",
+      "desc": "pm path + pull del base.apk.",
+      "help": "Descarga el APK instalado desde el dispositivo, para analisis estatico (jadx/MobSF) o para repackaging. Util cuando solo tienes la app instalada.",
+      "cli": "adb pull $(adb shell pm path <pkg> | sed 's/package://') <pkg>.apk",
+      "params": [],
+      "masvs": "recon"
+    },
+    {
+      "id": "signature_info",
+      "title": "Info de firma del APK",
+      "type": "core",
+      "action": "signature_info",
+      "desc": "Certificado de firma (debug/release).",
+      "help": "Muestra datos de la firma del APK. Un certificado 'debug' o v1-only es un hallazgo real (un banco jamas debe publicar firmado en debug).",
+      "cli": "adb shell dumpsys package <pkg> | findstr /i sign",
+      "params": [],
+      "masvs": "CODE"
+    },
+    {
+      "id": "screenshot",
+      "title": "Captura de pantalla",
+      "type": "core",
+      "action": "screenshot",
+      "desc": "screencap embebido.",
+      "help": "Toma una captura de la pantalla actual del dispositivo como evidencia.",
+      "cli": "adb exec-out screencap -p > pantalla.png",
+      "params": [],
+      "masvs": "evidencia"
+    },
+    {
+      "id": "capture_traffic",
+      "title": "Capturar trafico (proxy)",
+      "type": "custom",
+      "action": "capture_traffic",
+      "scripts": [
+        "ssl_unpin.js"
+      ],
+      "desc": "mitmproxy + proxy + ssl_unpin.",
+      "help": "Monta la captura de trafico: fija el proxy en el dispositivo, arranca mitmproxy y aplica el bypass de pinning para ver el HTTPS descifrado. Recuerda quitar el proxy al terminar.",
+      "cli": "adb shell settings put global http_proxy 127.0.0.1:8080  &&  mitmdump  &&  frida -U -n <pkg> -l frida_scripts/ssl_unpin.js",
+      "params": [
+        {
+          "name": "proxy_host",
+          "label": "Host proxy",
+          "default": "127.0.0.1",
+          "placeholder": "127.0.0.1"
+        },
+        {
+          "name": "proxy_port",
+          "label": "Puerto proxy",
+          "default": "8080",
+          "placeholder": "8080"
+        }
+      ],
+      "masvs": "NETWORK"
+    },
+    {
+      "id": "full_audit",
+      "title": "Auditoria completa",
+      "type": "core",
+      "action": "audit",
+      "desc": "recon+componentes+storage+captura+informe.",
+      "help": "Corre todo el analisis de un clic y genera un informe .md con el mapeo OWASP MASVS. Ideal para empezar o para el reporte final.",
+      "cli": "python dynadb.py audit <pkg>",
+      "params": [],
+      "masvs": "informe"
+    },
+    {
+      "id": "custom_script",
+      "title": "Ejecutar script propio",
+      "type": "custom",
+      "action": "custom_script",
+      "desc": "Elige de la libreria o pega JS.",
+      "help": "Corre un script Frida de la libreria (frida_scripts/) o uno que pegues a mano, en modo attach o spawn. Para tus propios hooks a medida.",
+      "cli": "frida -U -n <pkg> -l frida_scripts/<script>.js    (o -f <pkg> para spawn)",
+      "params": [
+        {
+          "name": "script_name",
+          "label": "Script de la libreria",
+          "default": "",
+          "placeholder": "crypto_trace.js"
+        },
+        {
+          "name": "inline",
+          "label": "JS pegado (opcional)",
+          "default": "",
+          "placeholder": "Java.perform(function(){ ... });"
+        },
+        {
+          "name": "mode",
+          "label": "Modo",
+          "default": "attach",
+          "placeholder": "spawn|attach"
+        }
+      ],
+      "masvs": "flexible"
+    },
+    {
+      "id": "providers",
+      "title": "Content Providers (enumerar / consultar)",
+      "type": "core",
+      "action": "providers",
+      "desc": "lista authorities y consulta content://",
+      "help": "Enumera los ContentProviders de la app y, si pones una URI, la consulta con 'content query'. Providers exportados o con SQL sin parametrizar filtran datos o permiten inyeccion (MASVS-PLATFORM).",
+      "cli": "adb shell content query --uri content://<authority>/<tabla>",
+      "params": [
+        {
+          "name": "uri",
+          "label": "URI a consultar (opcional)",
+          "default": "",
+          "placeholder": "content://<authority>/tabla"
+        }
+      ],
+      "masvs": "PLATFORM"
+    },
+    {
+      "id": "hook_builder",
+      "title": "Hook a la carta (sin código)",
+      "type": "custom",
+      "action": "hook_builder",
+      "desc": "hookea clase.metodo: registra o fuerza el retorno",
+      "help": "Genera y aplica un hook Frida SIN escribir JS. Indica clase (FQCN) y metodo: registra argumentos y retorno, o fuerza un valor (true/false, numero, texto o null). La app debe estar abierta (attach).",
+      "cli": "frida -U -n <pkg>  (genera Java.perform con el hook)",
+      "params": [
+        {
+          "name": "class",
+          "label": "Clase (FQCN)",
+          "default": "com.taller.bancoalien.security.RootDetection",
+          "placeholder": "com.example.App"
+        },
+        {
+          "name": "method",
+          "label": "Método",
+          "default": "isDeviceRooted",
+          "placeholder": "nombreMetodo"
+        },
+        {
+          "name": "force",
+          "label": "Forzar retorno (vacío = solo registrar)",
+          "default": "",
+          "placeholder": "false / true / 123 / texto"
+        }
+      ],
+      "masvs": "analisis"
+    },
+    {
+      "id": "storage_diff",
+      "title": "Diff de almacenamiento (antes/después)",
+      "type": "core",
+      "action": "storage_diff",
+      "desc": "localiza qué archivo/clave se escribe tras una acción",
+      "help": "Toma una foto del almacenamiento con fase='antes', haz la acción en la app (login, transferencia), y ejecuta otra vez con fase='despues' para ver EXACTAMENTE qué archivo cambió (dónde se guarda el token/PII). Requiere root o run-as.",
+      "cli": "find /data/data/<pkg> -type f -exec md5sum {} +   (antes y después, comparar)",
+      "params": [
+        {
+          "name": "fase",
+          "label": "Fase (antes / despues)",
+          "default": "antes",
+          "placeholder": "antes | despues"
+        }
+      ],
+      "masvs": "STORAGE"
+    },
+    {
+      "id": "static_scan",
+      "title": "Quick-scan estático del APK",
+      "type": "core",
+      "action": "static_scan",
+      "desc": "permisos, exported, debuggable, allowBackup, secretos/URLs",
+      "help": "Extrae el APK (si falta) y hace un escaneo estatico rapido: permisos peligrosos, componentes exportados, flags debuggable/allowBackup y secretos/URLs embebidos. Cierra el ciclo estatico<->dinamico y alimenta F1/F9.",
+      "cli": "adb pull <apk> + analisis de flags/strings",
+      "params": [],
+      "masvs": "CODE"
+    },
+    {
+      "id": "net_reader",
+      "title": "Leer respuestas de red (F10/F11)",
+      "type": "spawn",
+      "scripts": [
+        "root_bypass.js",
+        "http_reader.js"
+      ],
+      "desc": "Un clic: abre la app (bypass de root) y lee las respuestas OkHttp. El lector se engancha con retraso para no chocar con el bypass. Inicia sesion y entra al Dashboard.",
+      "help": "Spawnea Alien-Bank con bypass de root/anti-Frida y engancha okhttp3.ResponseBody.string(). Inicia sesion y entra al Dashboard: se disparan las peticiones a :8888/promo (F10, cleartext) y :9443/secure/vault (F11, pinned) y sus respuestas -con el flag- salen en la consola. El pinning no estorba porque leemos DENTRO de la app. Ten el ServidorAPI corriendo y la IP configurada en el engranaje del login.",
+      "cli": "frida -U -f <pkg> -l frida_scripts/root_bypass.js -l frida_scripts/http_reader.js",
+      "params": [],
+      "masvs": "NETWORK"
+    },
+    {
+      "id": "net_reader_attach",
+      "title": "Leer respuestas de red (attach, tras abrir)",
+      "type": "attach",
+      "scripts": [
+        "http_reader.js"
+      ],
+      "desc": "Engancha el lector de respuestas a la app YA abierta (úsalo después de 'Abrir con bypass de root').",
+      "help": "Método fiable para F10/F11: 1) ejecuta 'Abrir con bypass de root' y deja la app en el Login. 2) ejecuta este preset (attach) para enganchar okhttp3.ResponseBody.string() sin reabrir la app. 3) inicia sesion y entra al Dashboard: las respuestas con los flags salen en la consola. Ten el ServidorAPI corriendo y la IP en el engranaje.",
+      "cli": "frida -U -n <pkg> -l frida_scripts/http_reader.js",
+      "params": [],
+      "masvs": "NETWORK"
+    }
+  ]
+}

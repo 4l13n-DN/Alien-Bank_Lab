@@ -1,0 +1,149 @@
+{
+  "_comment": "Catalogo de ayuda contextual de la GUI (v3.2). El dev pone estos textos como tooltip (title/hover) y en paneles de ayuda. Data-driven: key -> {tip, help}. 'tip' = texto corto al pasar el mouse; 'help' = explicacion larga (panel '?').",
+  "adb": {
+    "path": {
+      "tip": "Ruta del ejecutable adb (adb.exe).",
+      "help": "adb es el puente con el dispositivo. Si no lo tienes, DynADB descarga platform-tools oficial de Google automaticamente. Aqui ves/ajustas la ruta."
+    },
+    "examinar": {
+      "tip": "Buscar adb.exe en tu disco.",
+      "help": "Selecciona manualmente la ruta a adb.exe si tienes uno propio (ej. C:\\...\\platform-tools\\adb.exe)."
+    },
+    "probar": {
+      "tip": "Verifica que adb responde.",
+      "help": "Ejecuta 'adb version'. Si responde, la ruta es valida."
+    },
+    "guardar": {
+      "tip": "Guarda la ruta de adb.",
+      "help": "Persiste la ruta en dynadb_config.json para futuras sesiones."
+    }
+  },
+  "device": {
+    "detectar": {
+      "tip": "Lista dispositivos conectados (adb devices).",
+      "help": "Muestra emuladores/telefonos visibles. Genymotion aparece como IP:5555; Nox como 127.0.0.1:62001/62025."
+    },
+    "refrescar": {
+      "tip": "Vuelve a leer el estado del dispositivo.",
+      "help": "Actualiza root/API/arquitectura del device seleccionado."
+    },
+    "hostport": {
+      "tip": "Conectar un emulador por red (host:port).",
+      "help": "Escribe host:port y pulsa Conectar. Genymotion suele conectarse solo; Nox usa 127.0.0.1:62001 (o 62025). Equivale a 'adb connect host:port'."
+    },
+    "auto": {
+      "tip": "Probar puertos tipicos de emuladores.",
+      "help": "Intenta conectar a los puertos comunes (Nox 62001/62025, MEmu 21503, LDPlayer 5555/5557) y engancha al que responda."
+    },
+    "root_chip": {
+      "tip": "root = el device permite ejecutar como root (su/uid=0).",
+      "help": "Necesario para leer /data/data de apps release y para que frida-server pueda hacer spawn. Genymotion viene rooteado; en AVD se logra con 'adb root'."
+    }
+  },
+  "app": {
+    "listar": {
+      "tip": "Lista las apps instaladas (terceros).",
+      "help": "Ejecuta 'pm list packages -3'. Elige de la lista el paquete a analizar (target)."
+    },
+    "instalar": {
+      "tip": "Instalar un APK desde tu disco.",
+      "help": "Selecciona un .apk y lo instala con 'adb install -r'. Luego aparece en 'Listar apps'."
+    },
+    "filtro": {
+      "tip": "Filtra la lista de paquetes.",
+      "help": "Escribe parte del nombre (ej. 'alien') para encontrar la app rapido."
+    },
+    "modo": {
+      "tip": "Como se lee el almacenamiento privado.",
+      "help": "auto = detecta solo. root = lee /data/data con su (apps release). run-as = solo apps debug (sin root). none = no hay acceso -> usar emulador root o repackaging."
+    }
+  },
+  "frida": {
+    "iniciar": {
+      "tip": "Descarga, sube y arranca frida-server (auto).",
+      "help": "1) Lee la version de frida del venv. 2) Detecta la arquitectura del device. 3) Descarga frida-server-<version>-android-<arch> de GitHub. 4) Lo sube a /data/local/tmp/frida-server, le da permisos y lo ARRANCA como root (puerto 27042). Tras reiniciar el emulador hay que volver a pulsarlo."
+    },
+    "verificar": {
+      "tip": "Comprueba si frida-server responde como root.",
+      "help": "Verifica que el host alcanza frida-server (equivale a 'frida-ps -U') y que corre como root (necesario para spawn)."
+    },
+    "chip": {
+      "tip": "frida = frida-server corriendo y alcanzable como root.",
+      "help": "Verde solo si responde Y es root. Si esta gris/rojo, pulsa 'Iniciar frida-server'."
+    },
+    "consola": {
+      "tip": "Salida en vivo de los scripts Frida.",
+      "help": "Muestra los console.log de los hooks (ej. '[root] hook OK: File.exists'). Es donde ves el bypass ocurrir."
+    }
+  },
+  "presets": {
+    "_ref": "Cada preset ya trae 'help' (que hace) y 'cli' (comando equivalente) en presets.json. Mostrar el 'help' como tooltip/'?' y el 'cli' con boton Copiar (sustituyendo <pkg> por el target)."
+  },
+  "tabs": {
+    "recon": {
+      "tip": "Version, debuggable, uid, modo de acceso.",
+      "help": "Reconocimiento inicial de la app (MASVS-CODE/PLATFORM)."
+    },
+    "componentes": {
+      "tip": "Activities/servicios; resalta los exportados.",
+      "help": "Los exportados son accesibles desde otras apps -> superficie de ataque (MASVS-PLATFORM)."
+    },
+    "almacenamiento": {
+      "tip": "Extrae prefs + SQLite y escanea secretos.",
+      "help": "Lee el almacenamiento privado (modo root/run-as) y resalta tokens/flags (MASVS-STORAGE)."
+    },
+    "launch": {
+      "tip": "Lanza activities con extras (IDOR/exported).",
+      "help": "Prueba acceso indebido cambiando un ID (IDOR) o abriendo componentes exportados (MASVS-AUTH/PLATFORM)."
+    },
+    "captura": {
+      "tip": "Screenshot del dispositivo.",
+      "help": "Evidencia visual. Si la app no usa FLAG_SECURE, la captura funciona (MASVS-PLATFORM)."
+    },
+    "logcat": {
+      "tip": "Logs de la app.",
+      "help": "Muchas apps loguean datos sensibles por descuido (MASVS-STORAGE)."
+    },
+    "frida": {
+      "tip": "Presets de instrumentacion (bypass, trazas).",
+      "help": "Bypass de root/pinning/anti-Frida y trazas en vivo. Requiere frida-server corriendo (MASVS-RESILIENCE/NETWORK/CRYPTO)."
+    },
+    "informe": {
+      "tip": "Auditoria completa + informe MASVS.",
+      "help": "Corre todo y genera un informe .md con el mapeo OWASP."
+    }
+  },
+  "connection_guide": {
+    "titulo": "Como conectar tu dispositivo",
+    "pasos": [
+      "Genymotion (recomendado): enciende el device; aparece SOLO en 'Detectar' como IP:5555. Ya viene rooteado.",
+      "Nox/MEmu/LDPlayer: pulsa 'Auto (Nox...)' o escribe host:port (Nox 127.0.0.1:62001). Ojo: no sirven para Frida (device ARM traducido).",
+      "AVD (Android Studio): arranca con 'emulator -avd X -writable-system', luego 'adb root'. Aparece como emulator-5554.",
+      "Telefono fisico: activa Depuracion USB (Opciones de desarrollador) y conectalo por USB. Sin root solo lees apps debug (run-as).",
+      "Cuando el chip 'device' este verde y 'root' verde, ya puedes elegir la app y analizar."
+    ]
+  },
+  "frida_info": {
+    "titulo": "Frida: donde se baja, donde corre",
+    "puntos": [
+      "Se DESCARGA de: github.com/frida/frida/releases, el archivo frida-server-<version>-android-<arch>.xz. La <version> debe coincidir con el frida del venv (frida --version).",
+      "Se SUBE a: /data/local/tmp/frida-server (en el dispositivo).",
+      "Se EJECUTA: en el DISPOSITIVO, como root, escuchando en el puerto 27042. El host (tu PC) habla con el por adb.",
+      "Ciclo de vida: NO es un servicio; hay que arrancarlo tras cada reinicio del emulador (boton 'Iniciar frida-server').",
+      "Errores tipicos: 'need Gadget/jailed' = frida-server no corre como root o el device es ARM-traducido (Nox); 'version mismatch' = host y server con versiones distintas."
+    ]
+  },
+  "frida_manual": {
+    "titulo": "Como correr frida-server y luego el bypass (receta que funciona)",
+    "intro": "Si el bypass falla con 'Address already in use' o 'major versions match', casi siempre es un frida-server viejo vivo. Sigue estos pasos EN ORDEN, en la carpeta DynADB:",
+    "pasos": [
+      "1) MATAR server viejo (libera el puerto 27042):  platform-tools\\adb shell \"su -c 'killall -9 frida-server'\"",
+      "2) VERIFICAR que no quede ninguno:  platform-tools\\adb shell \"su -c 'ps -A | grep frida'\"   (no debe imprimir nada)",
+      "3) SUBIR la version correcta (la del venv):  .venv\\Scripts\\python setup_frida.py --no-run",
+      "4) ARRANCAR el server como root (deja la ventana abierta):  platform-tools\\adb shell \"su -c '/data/local/tmp/frida-server -D'\"",
+      "5) CONFIRMAR que responde:  .venv\\Scripts\\frida-ps -U",
+      "6) BYPASS: en la GUI pulsa 'Abrir con bypass de root'  (o a mano:  .venv\\Scripts\\frida -U -f <pkg> -l frida_scripts\\root_bypass.js)"
+    ],
+    "nota": "La version de frida-server DEBE coincidir con la del venv (frida 16.x). Frida 17 quito el puente Java, por eso DynADB fija la 16.x automaticamente."
+  }
+}
