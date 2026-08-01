@@ -1,7 +1,5 @@
 # 👽 0xAlienSec — Alien-Bank Lab
 
-> "El conocimiento es libre, el crimen no."
-
 Laboratorio de **seguridad móvil (OWASP MASVS / MASTG)** para aprender análisis **estático y dinámico** de aplicaciones Android, de punta a punta y en local. Incluye una app de banca vulnerable tipo **CTF (ya compilada)**, la **plataforma de análisis dinámico** y un **servidor de API simulada** para el módulo de red.
 
 Pensado para talleres: montas el entorno una vez y capturas **11 flags** mapeadas a las categorías de OWASP MASVS. La app viene lista para instalar — **no necesitas Android Studio**.
