@@ -47,7 +47,7 @@ App Android de banca (`com.taller.bancoalien`) con **11 vulnerabilidades didáct
 
 * **No requiere Android Studio:** la app ya viene compilada en `/APP`. Solo se instala.
 * **Qué demuestra:** credenciales hardcodeadas (CODE), datos en claro en SharedPreferences y SQLite (STORAGE), sin `FLAG_SECURE` (PLATFORM), IDOR y activity exportada (AUTH/PLATFORM), evasión de root y anti-Frida (RESILIENCE), asset ofuscado (CRYPTO) y tráfico HTTP en claro + SSL pinning evadible (NETWORK).
-* **Credenciales de la app:** `alien` / `area51` (la gracia es descubrirlas, no que te las den).
+* **Acceso:** las credenciales están *dentro* de la app — descubrirlas es el primer reto (pista: revisa el código con jadx o el **Cazador** de AlienProbe). Aquí no se regalan.
 
 **Instalación (con el emulador ya encendido)**
 
