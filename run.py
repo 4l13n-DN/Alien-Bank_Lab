@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-run.py - Bootstrap de DynADB.
+run.py - Bootstrap de AlienProbe.
 - Crea un entorno virtual (.venv) si no existe.
 - Instala las dependencias de requirements.txt (solo si cambiaron).
 - Ejecuta el sistema (GUI si existe gui.py/app.py; si no, el CLI dynadb.py).

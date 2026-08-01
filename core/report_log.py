@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-core/report_log.py - Ledger de hallazgos ACUMULATIVO de DynADB.
+core/report_log.py - Ledger de hallazgos ACUMULATIVO de AlienProbe.
 
 Cada accion que se hace sobre la app (bypass de root, extraer almacenamiento, IDOR,
 captura, etc.) se registra aqui con su lectura de "app real", categoria OWASP MASVS,

@@ -1,4 +1,4 @@
-# frida_scripts — librería precargada de DynADB (10 scripts)
+# frida_scripts — librería precargada de AlienProbe (10 scripts)
 
 Scripts listos para instrumentar cualquier app (requieren frida-server corriendo y el venv con frida-tools).
 

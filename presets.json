@@ -1,5 +1,5 @@
 {
-  "_comment": "Catalogo data-driven de presets DynADB v3.1. Cada preset trae 'help' (que hace, didactico) y 'cli' (comando limpio equivalente por consola; <pkg> se sustituye por el target). type: spawn|attach|core|custom.",
+  "_comment": "Catalogo data-driven de presets AlienProbe v3.1. Cada preset trae 'help' (que hace, didactico) y 'cli' (comando limpio equivalente por consola; <pkg> se sustituye por el target). type: spawn|attach|core|custom.",
   "presets": [
     {
       "id": "root_bypass",

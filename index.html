@@ -218,6 +218,35 @@
     border:1px solid var(--line);border-radius:var(--radius-sm);padding:2px 8px}
   .tab-intro .ti-close:hover{color:var(--text);border-color:var(--line-2)}
 
+  /* ===== Tarjetas de paso (flujo guiado, reutilizable) ===== */
+  .stepcard{background:linear-gradient(180deg,rgba(63,185,80,.035),var(--bg-1));
+    border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin:0 0 14px;
+    transition:border-color .15s ease, box-shadow .15s ease}
+  .stepcard:hover{border-color:var(--line-2);box-shadow:var(--shadow-sm)}
+  .stepcard > .sc-head{display:flex;align-items:center;gap:11px;margin-bottom:11px}
+  .sc-badge{flex:0 0 auto;width:28px;height:28px;border-radius:50%;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#0d1117;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;font-family:var(--mono);
+    box-shadow:0 0 0 4px rgba(63,185,80,.10)}
+  .sc-title{font-size:15px;font-weight:600;color:var(--text);line-height:1.2}
+  .sc-title small{display:block;font-size:11px;font-weight:400;color:var(--text-3);margin-top:2px;letter-spacing:.2px}
+  .sc-steps{margin:0 0 13px;padding:0;list-style:none;counter-reset:scs}
+  .sc-steps li{position:relative;padding:3px 0 3px 24px;font-size:12.5px;line-height:1.65;color:var(--text-2)}
+  .sc-steps li::before{counter-increment:scs;content:counter(scs,lower-alpha) ")";position:absolute;left:0;top:3px;
+    color:var(--accent);font-weight:700;font-family:var(--mono);font-size:12px}
+  .sc-steps li b{color:var(--text)}
+  .sc-steps li code{background:var(--bg-3);padding:1px 6px;border-radius:3px;color:var(--accent);font-size:11.5px}
+  /* Leyenda de acciones (qué hace cada botón) */
+  .legend{border:1px dashed var(--line-2);border-radius:var(--radius-sm);padding:11px 14px;margin-top:12px;
+    background:rgba(255,255,255,.015)}
+  .legend .lg-t{font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:7px;letter-spacing:.2px}
+  .legend .lg-row{display:grid;grid-template-columns:26px 1fr;gap:4px 9px;align-items:baseline;
+    font-size:12px;line-height:1.75;color:var(--text-2)}
+  .legend .lg-ico{text-align:center;font-size:13px}
+  .legend b{color:var(--text)}
+  .legend .destructive{color:var(--danger);font-weight:600;font-size:10.5px;
+    border:1px solid rgba(248,81,73,.3);background:rgba(248,81,73,.1);border-radius:3px;padding:0 6px;margin-left:4px}
+
   /* ===== Animaciones sutiles (no interrumpen el funcionamiento) ===== */
   .tabpane:not(.hidden){animation:fadeInUp .22s ease}
   .panel{transition:border-color .15s ease, box-shadow .15s ease}
@@ -390,14 +419,17 @@
         <button class="tab" data-tab="frida" onclick="tab('frida')" data-tip="Presets de instrumentación (bypass, trazas).">Frida <span class="badge">29</span></button>
         <button class="tab" data-tab="report" onclick="tab('report')" data-tip="Auditoría completa + informe MASVS.">Informe</button>
         <button class="tab" data-tab="hunt" onclick="tab('hunt')" data-tip="Busca secretos, claves y flags en el APK (jadx).">🕵️ Cazador</button>
+        <button class="tab" data-tab="apkx" onclick="tab('apkx')" data-tip="Consola ADB gráfica: comandos, apps, extraer APK y más.">⚡ ADB</button>
         <button class="tab" data-tab="connect" onclick="tab('connect')" data-tip="Cómo conectar Genymotion/Nox/AVD/físico.">Cómo conectar</button>
       </div>
       <div class="content" id="content">
 
         <!-- AVISO ETICO -->
-        <div class="banner">
-          <strong>⚠ Uso ético/legal.</strong>
-          <span>Solo apps propias, de laboratorio o con autorización escrita del titular. La banca real solo bajo contrato de pentest. Ejecutar en entorno aislado.</span>
+        <div class="banner" id="ethics-banner">
+          <span style="flex:1"><strong>⚠ Uso ético/legal.</strong>
+          Solo apps propias, de laboratorio o con autorización escrita del titular. La banca real solo bajo contrato de pentest. Ejecutar en entorno aislado.</span>
+          <button type="button" onclick="closeEthics()" title="Ocultar aviso" aria-label="Cerrar"
+            style="flex:0 0 auto;background:transparent;border:1px solid var(--line-2);color:var(--text-2);border-radius:8px;width:24px;height:24px;line-height:1;font-size:13px;cursor:pointer;padding:0">✕</button>
         </div>
 
         <!-- INTRO DIDÁCTICA POR PESTAÑA (se inyecta sola según la pestaña activa) -->
@@ -488,9 +520,9 @@
               <button class="btn" onclick="huntRun('creds')">🔑 Credenciales</button>
               <button class="btn" onclick="huntAsset()">🔓 Decodificar config.dat (F9)</button>
             </div>
-            <label style="display:inline-flex;align-items:center;gap:7px;font-size:12px;margin-top:9px;cursor:pointer">
-              <input type="checkbox" id="hunt-usejadx" checked />
-              Usar <b>jadx</b>: código Java con nº de línea y contexto ±3. La primera vez decompila (~30 s); después es inmediato. Sin marcar, busca en el binario al instante (sin líneas).
+            <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;margin-top:10px;cursor:pointer;line-height:1.6">
+              <input type="checkbox" id="hunt-usejadx" checked style="flex:0 0 auto;width:15px;height:15px;margin:2px 0 0" />
+              <span>Usar <b>jadx</b>: código Java con nº de línea y contexto ±3. La primera vez decompila (~30 s); después es inmediato. Sin marcar, busca en el binario al instante (sin líneas).</span>
             </label>
 
             <div class="text-tenue" style="font-size:11.5px;margin-top:10px;line-height:1.9">
@@ -507,6 +539,90 @@
             <p class="lead" style="margin-top:6px">En “Buscar” escribe un término: <code>password</code> (sale el campo <code>password_plain</code>), <code>area51</code>, <code>token</code>, <code>secret</code> o <code>http</code>. Con jadx, el botón <b>🔎 contexto ±3</b> abre las líneas alrededor del hallazgo, útil para leer una credencial en su sitio. No hace falta saber la flag de antemano: se busca por patrones.</p>
 
             <div id="hunt-out"></div>
+          </div>
+        </div>
+
+        <!-- ADB — herramienta gráfica (modulo adicional) -->
+        <div id="tab-apkx" class="tabpane hidden">
+          <div class="panel">
+            <h2>⚡ ADB <span class="text-tenue" style="font-weight:400;font-size:11px">(consola gráfica + apps)</span></h2>
+            <p class="lead">Habla con el dispositivo por ADB sin memorizar comandos. Tiene dos bloques: una <b>consola</b> guiada y un <b>administrador de apps</b>. Sigue los pasos.</p>
+
+            <!-- PASO 1 -->
+            <div class="stepcard">
+              <div class="sc-head"><span class="sc-badge">1</span>
+                <div class="sc-title">Consola de comandos<small>Habla con el dispositivo sin memorizar comandos</small></div></div>
+              <ul class="sc-steps">
+                <li>Elige un comando de <b>Comandos frecuentes</b> (se copia solo al campo de la derecha) o escríbelo a mano, <b>sin</b> el <code>adb</code> inicial.</li>
+                <li>Pulsa <b>▶ Ejecutar</b>.</li>
+                <li>La respuesta del dispositivo aparece en el recuadro de abajo.</li>
+              </ul>
+            <div class="row" style="gap:10px;align-items:flex-end">
+              <div class="field"><label>Comandos frecuentes</label>
+                <select id="adb-preset" onchange="if(this.value)document.getElementById('adb-cmd').value=this.value">
+                  <option value="">— elige o escribe abajo —</option>
+                  <optgroup label="Básicas">
+                    <option value="devices">devices — dispositivos conectados</option>
+                    <option value="shell getprop ro.product.model">getprop modelo</option>
+                    <option value="shell getprop ro.build.version.release">getprop versión Android</option>
+                    <option value="shell getprop ro.product.cpu.abi">getprop ABI (x86_64/arm)</option>
+                    <option value="shell wm size">tamaño de pantalla</option>
+                    <option value="shell pm list packages -3">apps de usuario (-3)</option>
+                  </optgroup>
+                  <optgroup label="Avanzadas">
+                    <option value="shell dumpsys battery">estado de batería</option>
+                    <option value="shell df -h">espacio en disco</option>
+                    <option value="shell ps -A">procesos</option>
+                    <option value="shell ip addr">interfaces de red / IP</option>
+                    <option value="shell settings list global">settings globales</option>
+                    <option value="shell service list">servicios del sistema</option>
+                  </optgroup>
+                  <optgroup label="Especiales">
+                    <option value="shell input keyevent 3">tecla HOME</option>
+                    <option value="shell input keyevent 26">tecla POWER</option>
+                    <option value="shell am start -a android.intent.action.VIEW -d https://example.com">abrir una URL</option>
+                    <option value="shell su -c id">comprobar root (su)</option>
+                    <option value="reboot">reiniciar dispositivo</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="field grow"><label>Comando <span class="text-tenue" style="font-weight:400">(sin el «adb» inicial)</span></label>
+                <input id="adb-cmd" placeholder="shell pm list packages -3" onkeydown="if(event.key==='Enter')adbRun()" /></div>
+              <button class="btn primary" onclick="adbRun()">▶ Ejecutar</button>
+            </div>
+            <pre id="adb-out" class="text-muted" style="max-height:280px;overflow:auto">Elige un comando o escríbelo y pulsa Ejecutar…</pre>
+            </div>
+
+            <!-- PASO 2 -->
+            <div class="stepcard">
+              <div class="sc-head"><span class="sc-badge">2</span>
+                <div class="sc-title">Administrador de apps<small>Extrae, inspecciona y controla apps instaladas</small></div></div>
+              <ul class="sc-steps">
+                <li>Escribe parte del nombre del paquete y pulsa <b>Listar</b> (o déjalo vacío para ver todas).</li>
+                <li>En cada app tienes botones de acción (mira la leyenda de abajo).</li>
+                <li>Al extraer un APK sale un aviso <b>«Listo»</b> con la ruta y el botón de descarga.</li>
+              </ul>
+            <div class="row" style="gap:10px;align-items:flex-end">
+              <div class="field grow"><label>Filtro (parte del paquete)</label>
+                <input id="apkx-q" placeholder="whatsapp · instagram · com.taller" onkeydown="if(event.key==='Enter')apkxList()" /></div>
+              <button class="btn" onclick="apkxList()">🔎 Listar</button>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:10px;cursor:pointer">
+              <input type="checkbox" id="apkx-third" checked onchange="apkxList()" style="flex:0 0 auto;width:15px;height:15px;margin:0" />
+              <span>Solo apps de usuario (<code class="mono">-3</code>) — desmárcalo para ver también las del sistema.</span>
+            </label>
+            <div class="legend">
+              <div class="lg-t">Qué hace cada botón de la app</div>
+              <div class="lg-row"><span class="lg-ico">⤓</span><span><b>Extraer APK</b> — copia el <code>.apk</code> de la app al PC, para analizarlo.</span></div>
+              <div class="lg-row"><span class="lg-ico">📋</span><span><b>Info</b> — versión, permisos y rutas de la app.</span></div>
+              <div class="lg-row"><span class="lg-ico">▶</span><span><b>Abrir</b> — lanza la app en el dispositivo.</span></div>
+              <div class="lg-row"><span class="lg-ico">⏹</span><span><b>Force-stop</b> — la cierra por completo.</span></div>
+              <div class="lg-row"><span class="lg-ico">🧹</span><span><b>Borrar datos</b> — la deja como recién instalada.<span class="destructive">destructivo</span></span></div>
+              <div class="lg-row"><span class="lg-ico">🗑</span><span><b>Desinstalar</b> — la quita del dispositivo.<span class="destructive">destructivo</span></span></div>
+            </div>
+            <div id="apkx-list" style="margin-top:12px"></div>
+            <div id="apkx-out"></div>
+            </div>
           </div>
         </div>
 
@@ -653,6 +769,8 @@
 
 <script>
 const API = (p, opt) => fetch(p, opt).then(r => r.json()).catch(e => ({ok:false, error:String(e)}));
+function closeEthics(){ const b=document.getElementById('ethics-banner'); if(b) b.style.display='none'; try{localStorage.setItem('alienprobe_ethics_hidden','1');}catch(e){} }
+try{ if(localStorage.getItem('alienprobe_ethics_hidden')==='1'){ const b=document.getElementById('ethics-banner'); if(b) b.style.display='none'; } }catch(e){}
 let PRESETS = [];
 let activePreset = null;
 let activeSession = null;
@@ -848,6 +966,7 @@ const TAB_INTRO = {
   frida:      {icon:'🧬', title:'Frida (instrumentación)', what:'Modifica la app en vivo: bypass de root/SSL, hooks y trazas.', when:'Para saltar controles del cliente y observar o alterar la lógica en tiempo real.', look:'Controles evadibles con un hook (MASVS-RESILIENCE) y tráfico legible tras el unpinning.'},
   report:     {icon:'📄', title:'Informe', what:'Registra cada acción con su lectura de "app real" y lo exporta en .md o .html (→ PDF).', when:'Siempre: es tu entregable. Se va llenando solo con lo que haces.', look:'El resumen de hallazgos por severidad y su mapeo OWASP MASVS.'},
   hunt:       {icon:'🕵️', title:'Cazador de secretos', what:'Busca en el APK (con jadx o cadenas del binario) credenciales, tokens, URLs y las flags ALIEN{…}.', when:'En el análisis estático, para hallar secretos sin revisar a mano toda la lista de strings.', look:'Credenciales o tokens en claro (MASVS-CODE/STORAGE) y URLs de backend. Términos útiles: password, secret, token, http.'},
+  apkx:       {icon:'⚡', title:'ADB (consola gráfica)', what:'Ejecuta comandos ADB desde una lista o a mano, y administra las apps: extraer APK, info, force-stop, borrar datos, desinstalar.', when:'Cuando necesitas interactuar con el dispositivo (sacar un APK, ver props, gestionar apps) sin memorizar comandos.', look:'La app objetivo y su paquete; extrae su base.apk para analizarlo. Ojo con desinstalar/borrar datos: son acciones destructivas.'},
   connect:    {icon:'🔌', title:'Cómo conectar', what:'Guía para conectar el dispositivo (Genymotion, Nox, AVD o físico).', when:'Al inicio, cuando los chips device / root no están en verde.', look:'Que ambos chips se pongan verdes antes de elegir la app y analizar.'},
 };
 let introHidden = false;
@@ -880,6 +999,78 @@ function tab(name){
   if(name==='report') refreshLedger();
   if(name==='hunt') huntStatus();
   if(name==='launch') loadLaunchActs();
+  if(name==='apkx') apkxList();
+}
+
+/* ---------- extractor de APKs (modulo adicional) ---------- */
+async function apkxList(){
+  const box = document.getElementById('apkx-list'); const out = document.getElementById('apkx-out');
+  if(!box) return; if(out) out.innerHTML='';
+  box.innerHTML = '<p class="text-tenue">Listando apps…</p>';
+  const q = (document.getElementById('apkx-q')||{value:''}).value.trim();
+  const third = (document.getElementById('apkx-third')||{checked:true}).checked ? '1' : '0';
+  const r = await API('/api/apkx/list?q='+encodeURIComponent(q)+'&third='+third);
+  if(!r.ok){ box.innerHTML = '<p class="text-danger">'+esc(r.error||'Error')+'</p>'; return; }
+  const pk = r.data.packages || [];
+  if(!pk.length){ box.innerHTML = '<p class="text-tenue">Sin resultados. Prueba otro filtro o desmarca «solo apps de usuario».</p>'; return; }
+  const b = p => "'" + String(p).replace(/\\/g,"\\\\").replace(/'/g,"\\'") + "'";
+  box.innerHTML = '<div class="text-tenue" style="font-size:12px;margin-bottom:6px">'+pk.length+' apps</div>' +
+    pk.map(p => '<div style="border:1px solid var(--line,#243a2c);border-radius:9px;padding:8px 11px;margin:5px 0">'+
+      '<code style="color:#CFEFE4;word-break:break-all">'+esc(p)+'</code>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">'+
+        '<button class="btn" style="padding:2px 9px;font-size:11px" onclick="apkxPull('+b(p)+')">⤓ Extraer APK</button>'+
+        '<button class="btn" style="padding:2px 9px;font-size:11px" onclick="adbAppAction('+b(p)+',\'info\')">📋 Info</button>'+
+        '<button class="btn" style="padding:2px 9px;font-size:11px" onclick="adbAppAction('+b(p)+',\'open\')">▶ Abrir</button>'+
+        '<button class="btn" style="padding:2px 9px;font-size:11px" onclick="adbAppAction('+b(p)+',\'forcestop\')">⏹ Force-stop</button>'+
+        '<button class="btn" style="padding:2px 9px;font-size:11px;border-color:rgba(255,176,32,.5)" onclick="adbAppAction('+b(p)+',\'cleardata\',true)">🧹 Borrar datos</button>'+
+        '<button class="btn" style="padding:2px 9px;font-size:11px;border-color:rgba(255,107,107,.5);color:#FF6B6B" onclick="adbAppAction('+b(p)+',\'uninstall\',true)">🗑 Desinstalar</button>'+
+      '</div></div>').join('');
+}
+async function adbRun(){
+  const out = document.getElementById('adb-out');
+  const cmd = document.getElementById('adb-cmd').value.trim();
+  if(!cmd){ out.textContent = 'Escribe un comando (o elígelo de la lista).'; return; }
+  out.textContent = '$ adb '+cmd+'\n…';
+  const r = await API('/api/adb/run', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cmd})});
+  if(!r.ok){ out.textContent = '$ adb '+cmd+'\n'+(r.error||'Error'); return; }
+  out.textContent = '$ '+(r.data.cmd||('adb '+cmd))+'\n'+(r.data.output||'(sin salida)');
+}
+async function adbAppAction(pkg, action, danger){
+  const out = document.getElementById('apkx-out');
+  if(danger){
+    const labels = {cleardata:'BORRAR TODOS LOS DATOS de', uninstall:'DESINSTALAR'};
+    if(!confirm('¿Seguro que quieres '+(labels[action]||action)+' '+pkg+'? Esta acción no se puede deshacer.')) return;
+  }
+  out.innerHTML = '<p class="text-tenue">Ejecutando <b>'+esc(action)+'</b> sobre '+esc(pkg)+'…</p>';
+  const r = await API('/api/adb/app', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({package:pkg, action})});
+  if(!r.ok){ out.innerHTML = '<p class="text-danger">'+esc(r.error||'Error')+'</p>'; return; }
+  const d = r.data;
+  out.innerHTML = '<div style="margin-top:10px"><div class="text-tenue" style="font-size:12px">'+esc(action)+' · <code>'+esc(pkg)+'</code></div>'+
+    '<pre style="max-height:260px;overflow:auto">'+esc(d.output||'(ok, sin salida)')+'</pre></div>';
+  if(action==='uninstall') apkxList();   // refresca la lista
+}
+async function apkxPull(pkg){
+  const out = document.getElementById('apkx-out');
+  out.innerHTML = '<div style="border:1px solid var(--line,#243a2c);border-radius:10px;padding:12px 14px;margin-top:12px">'+
+    '<b>⏳ Extrayendo APK…</b> <code>'+esc(pkg)+'</code>'+
+    '<div class="text-tenue" style="font-size:11.5px;margin-top:4px">pm path + adb pull del base.apk. En apps grandes puede tardar varios segundos.</div></div>';
+  out.scrollIntoView({behavior:'smooth', block:'center'});
+  const t0 = Date.now();
+  const r = await API('/api/apkx/pull', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({package:pkg})});
+  if(!r.ok){ out.innerHTML = '<div class="text-danger" style="margin-top:12px">✗ '+esc(r.error||'Error al extraer')+'</div>'; if(window.toast)toast('Error al extraer','err'); return; }
+  const d = r.data;
+  const secs = ((Date.now()-t0)/1000).toFixed(1);
+  const mb = ((d.size||0)/1048576).toFixed(2);
+  let h = '<div style="border:1px solid rgba(46,232,110,.55);background:rgba(46,232,110,.07);border-radius:12px;padding:13px 15px;margin-top:12px;box-shadow:0 0 18px rgba(46,232,110,.1)">';
+  h += '<div style="font-size:15px"><b style="color:#57FF97">✓ Listo — APK extraído</b></div>';
+  h += '<div style="margin-top:4px"><code>'+esc(pkg)+'</code> · <b>'+mb+' MB</b> ('+(d.size||0).toLocaleString()+' bytes) · '+secs+' s</div>';
+  h += '<div class="panel-actions" style="margin:10px 0 4px"><a class="btn primary" href="'+d.download+'" download>⬇ Descargar APK</a></div>';
+  h += '<div class="text-tenue" style="font-size:11.5px;font-family:monospace;margin-top:4px;word-break:break-all">📁 Guardado en el PC: '+esc(d.saved||'')+'</div>';
+  if(d.splits) h += '<div class="text-tenue" style="font-size:11px;margin-top:4px">Nota: la app tiene <b>splits</b> (App Bundle); se extrajo el <span class="mono">base.apk</span> (sirve para analizar; para reinstalarla completa harían falta los splits).</div>';
+  h += '<div class="text-tenue" style="font-size:11.5px;margin-top:6px">▶ Analízala en <b>🕵️ Cazador</b> → <b>Abrir APK…</b>, o súbela a MobSF.</div></div>';
+  out.innerHTML = h;
+  out.scrollIntoView({behavior:'smooth', block:'center'});
+  if(window.toast) toast('✓ APK extraído: '+pkg, 'ok');
 }
 
 /* ---------- selector de activities (Launch/IDOR) ---------- */

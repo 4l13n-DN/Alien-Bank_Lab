@@ -3,7 +3,7 @@
   "adb": {
     "path": {
       "tip": "Ruta del ejecutable adb (adb.exe).",
-      "help": "adb es el puente con el dispositivo. Si no lo tienes, DynADB descarga platform-tools oficial de Google automaticamente. Aqui ves/ajustas la ruta."
+      "help": "adb es el puente con el dispositivo. Si no lo tienes, AlienProbe descarga platform-tools oficial de Google automaticamente. Aqui ves/ajustas la ruta."
     },
     "examinar": {
       "tip": "Buscar adb.exe en tu disco.",
@@ -135,7 +135,7 @@
   },
   "frida_manual": {
     "titulo": "Como correr frida-server y luego el bypass (receta que funciona)",
-    "intro": "Si el bypass falla con 'Address already in use' o 'major versions match', casi siempre es un frida-server viejo vivo. Sigue estos pasos EN ORDEN, en la carpeta DynADB:",
+    "intro": "Si el bypass falla con 'Address already in use' o 'major versions match', casi siempre es un frida-server viejo vivo. Sigue estos pasos EN ORDEN, en la carpeta AlienProbe:",
     "pasos": [
       "1) MATAR server viejo (libera el puerto 27042):  platform-tools\\adb shell \"su -c 'killall -9 frida-server'\"",
       "2) VERIFICAR que no quede ninguno:  platform-tools\\adb shell \"su -c 'ps -A | grep frida'\"   (no debe imprimir nada)",
@@ -144,6 +144,6 @@
       "5) CONFIRMAR que responde:  .venv\\Scripts\\frida-ps -U",
       "6) BYPASS: en la GUI pulsa 'Abrir con bypass de root'  (o a mano:  .venv\\Scripts\\frida -U -f <pkg> -l frida_scripts\\root_bypass.js)"
     ],
-    "nota": "La version de frida-server DEBE coincidir con la del venv (frida 16.x). Frida 17 quito el puente Java, por eso DynADB fija la 16.x automaticamente."
+    "nota": "La version de frida-server DEBE coincidir con la del venv (frida 16.x). Frida 17 quito el puente Java, por eso AlienProbe fija la 16.x automaticamente."
   }
 }

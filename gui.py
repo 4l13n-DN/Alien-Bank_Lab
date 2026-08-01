@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-gui.py - Interfaz web local de DynADB.
+gui.py - Interfaz web local de AlienProbe.
 Capa delgada sobre el nucleo dynadb.py + core/access.py. Sirve una SPA (index.html)
 con tema oscuro/neon y expone la API JSON que la consume.
 
@@ -544,6 +544,116 @@ def hunt_run():
     return _ok(res)
 
 
+# ---------------- API: Extractor de APKs (modulo adicional) ----------------
+@app.get("/api/apkx/list")
+def apkx_list():
+    _set_adb()
+    serial = STATE.get("serial")
+    q = (request.args.get("q") or "").strip().lower()
+    third = request.args.get("third", "1") != "0"
+    args = ["shell", "pm", "list", "packages"]
+    if third:
+        args += ["-3"]
+    rc, out, err = dynadb.adb(args, serial)
+    if rc != 0 and not out:
+        return _err((err or "adb no respondió (¿dispositivo conectado?)").strip())
+    pkgs = []
+    for ln in (out or "").splitlines():
+        ln = ln.strip()
+        if ln.startswith("package:"):
+            p = ln.split("package:", 1)[1].strip()
+            if p and (not q or q in p.lower()):
+                pkgs.append(p)
+    pkgs.sort()
+    return _ok({"packages": pkgs, "count": len(pkgs), "third": third})
+
+
+@app.post("/api/apkx/pull")
+def apkx_pull():
+    _set_adb()
+    serial = STATE.get("serial")
+    body = request.json or {}
+    pkg = (body.get("package") or "").strip()
+    if not pkg:
+        return _err("Indica el paquete a extraer.")
+    rc, out, err = dynadb.adb(["shell", "pm", "path", pkg], serial)
+    paths = [l.split("package:", 1)[1].strip() for l in (out or "").splitlines() if l.startswith("package:")]
+    if not paths:
+        return _err("No encontré el APK de %s en el dispositivo (¿está instalado?)." % pkg)
+    base = next((p for p in paths if p.endswith("base.apk")), paths[0])
+    os.makedirs(os.path.join(BASE, "loot"), exist_ok=True)
+    dest = os.path.join(BASE, "loot", pkg + ".apk")
+    prc, pout, perr = dynadb.adb(["pull", base, dest], serial, timeout=300)
+    ok = os.path.exists(dest) and os.path.getsize(dest) > 0
+    if not ok:
+        detail = (perr or pout or "").strip() or "adb no devolvió detalle"
+        return _err("No pude extraer el APK (adb pull falló).\nOrigen: %s\n%s" % (base, detail))
+    size = os.path.getsize(dest)
+    try:
+        if ok:
+            report_log.log_action("pull_apk", pkg,
+                evidencia="APK extraído: %s (%d bytes) desde %s" % (dest, size, base))
+    except Exception:
+        pass
+    return _ok({"package": pkg, "device_paths": paths, "splits": len(paths) > 1,
+                "saved": dest if ok else None, "size": size,
+                "download": ("/api/loot/" + pkg + ".apk") if ok else None,
+                "base": base})
+
+
+# ---------------- API: consola ADB + acciones por app (modulo ADB) ----------------
+@app.post("/api/adb/run")
+def adb_run():
+    import shlex
+    _set_adb()
+    body = request.json or {}
+    cmd = (body.get("cmd") or "").strip()
+    if not cmd:
+        return _err("Escribe un comando (sin el 'adb' inicial, ej: shell pm list packages -3).")
+    if cmd.lower().startswith("adb "):
+        cmd = cmd[4:].strip()
+    try:
+        parts = shlex.split(cmd)
+    except Exception as e:
+        return _err("Comando inválido: %s" % e)
+    if not parts:
+        return _err("Comando vacío.")
+    rc, out, err = dynadb.adb(parts, STATE.get("serial"))
+    blob = ((out or "") + (("\n" + err) if err else "")).strip()
+    return _ok({"rc": rc, "output": blob[:8000], "cmd": "adb " + cmd})
+
+
+@app.post("/api/adb/app")
+def adb_app():
+    _set_adb()
+    body = request.json or {}
+    pkg = (body.get("package") or "").strip()
+    action = (body.get("action") or "").strip()
+    serial = STATE.get("serial")
+    if not pkg:
+        return _err("Indica el paquete.")
+    m = {
+        "info":      ["shell", "dumpsys", "package", pkg],
+        "forcestop": ["shell", "am", "force-stop", pkg],
+        "cleardata": ["shell", "pm", "clear", pkg],
+        "uninstall": ["uninstall", pkg],
+        "open":      ["shell", "monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1"],
+    }
+    if action not in m:
+        return _err("Acción no soportada.")
+    rc, out, err = dynadb.adb(m[action], serial)
+    blob = ((out or "") + (("\n" + err) if err else "")).strip()
+    if action == "info":
+        keep = []
+        for ln in blob.splitlines():
+            if re.search(r'(versionName|versionCode|targetSdk|minSdk|firstInstallTime|lastUpdateTime|'
+                         r'dataDir|codePath|primaryCpuAbi|requested permissions|android\.permission|exported=true)',
+                         ln):
+                keep.append(ln.strip())
+        blob = "\n".join(keep[:70]) or blob[:2000]
+    return _ok({"action": action, "package": pkg, "rc": rc, "output": blob[:6000]})
+
+
 # ---------------- API: help contextual (v3.2) ----------------
 @app.get("/api/help")
 def ui_help():
@@ -747,7 +857,7 @@ def _manual_frida_cmds(pkg):
     p = pkg or "com.taller.bancoalien"
     return (
         "\n\n=== RECETA QUE SI FUNCIONA (arrancar frida-server + bypass) ===\n"
-        "Ejecuta en la carpeta DynADB, en este orden:\n"
+        "Ejecuta en la carpeta AlienProbe, en este orden:\n"
         "1) MATAR server viejo  (evita 'Address already in use' y 'major versions match'):\n"
         "   platform-tools\\adb shell \"su -c 'killall -9 frida-server'\"\n"
         "2) SUBIR la version correcta (la misma del venv):\n"

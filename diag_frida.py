@@ -16,7 +16,7 @@ OK, BAD, WARN = "  [OK] ", "  [X]  ", "  [!]  "
 def line(): print("-" * 60)
 
 def main():
-    print("=" * 60); print("  DIAGNOSTICO FRIDA — DynADB"); print("=" * 60)
+    print("=" * 60); print("  DIAGNOSTICO FRIDA — AlienProbe"); print("=" * 60)
     verdict = []
 
     # 0) adb

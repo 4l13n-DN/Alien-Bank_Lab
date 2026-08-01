@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-core/instrument.py - Wrapper de Frida (bindings Python) para DynADB v3.
+core/instrument.py - Wrapper de Frida (bindings Python) para AlienProbe v3.
 
 Expone sesiones de instrumentacion que se controlan desde la GUI:
   - spawn_with_scripts(pkg, [scripts])  -> spawnea la app cargando scripts ANTES del resume

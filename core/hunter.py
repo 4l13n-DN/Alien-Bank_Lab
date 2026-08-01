@@ -20,7 +20,7 @@ import subprocess
 import urllib.request
 import platform
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # carpeta DynADB/
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # carpeta AlienProbe/
 TOOLS = os.path.join(BASE, "tools")
 JADX_DIR = os.path.join(TOOLS, "jadx")
 JADX_CACHE = os.path.join(TOOLS, "jadx_src")     # fuentes decompiladas por hash de APK

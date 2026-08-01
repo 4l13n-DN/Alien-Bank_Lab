@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-DynADB - mini toolkit de analisis dinamico de APKs via ADB (didactico).
+AlienProbe - mini toolkit de analisis dinamico de APKs via ADB (didactico).
 Cada subcomando corresponde a una tecnica real de pentest movil.
 Uso general:
     python dynadb.py [--serial emulator-5554] [--adb C:\\ruta\\adb.exe] <comando> ...
@@ -539,7 +539,7 @@ def cmd_report(a):
         open(shot, "wb").write(data)
     findings = cmd_storage(argparse.Namespace(package=pkg, serial=a.serial, out=a.out))
     md = []
-    md.append("# Informe dinámico (DynADB) — %s" % pkg)
+    md.append("# Informe dinámico (AlienProbe) — %s" % pkg)
     md.append("Fecha: %s\n" % ts)
     if info:
         md.append("## Recon")
@@ -658,7 +658,7 @@ def cmd_config(a):
     print("Config (%s): %s" % (CONFIG_FILE, cfg))
 
 def cmd_doctor(a):
-    print("== DynADB doctor — verificacion del entorno ==")
+    print("== AlienProbe doctor — verificacion del entorno ==")
     print("adb            : %s" % ADB)
     rc, out, _ = adb(["version"])
     print("adb responde   : %s" % (out.splitlines()[0].strip() if rc == 0 and out else "NO"))
@@ -683,7 +683,7 @@ def cmd_doctor(a):
 
 # ---------------- CLI ----------------
 def build_parser():
-    p = argparse.ArgumentParser(description="DynADB - analisis dinamico de APKs via adb")
+    p = argparse.ArgumentParser(description="AlienProbe - analisis dinamico de APKs via adb")
     p.add_argument("--serial", help="serial del dispositivo (adb -s), ej. emulator-5554")
     p.add_argument("--adb", default="adb", help="ruta al ejecutable adb")
     sub = p.add_subparsers(dest="cmd", required=True)
