@@ -1,6 +1,6 @@
 # 👽 0xAlienSec — Alien-Bank Lab
 
-Laboratorio de **seguridad móvil (OWASP MASVS / MASTG)** para aprender análisis **estático y dinámico** de aplicaciones Android, de punta a punta y en local. Incluye una app de banca vulnerable tipo **CTF (ya compilada)**, la **plataforma de análisis dinámico** y un **servidor de API simulada** para el módulo de red.
+Laboratorio de **seguridad móvil (OWASP MASVS / MASTG)** para aprender análisis **estático y dinámico** de aplicaciones Android, de punta a punta y en local. Incluye una app de banca vulnerable tipo **CTF (ya compilada)**, la **plataforma de análisis dinámico AlienProbe** y un **servidor de API simulada** para el módulo de red.
 
 Pensado para talleres: montas el entorno una vez y capturas **11 flags** mapeadas a las categorías de OWASP MASVS. La app viene lista para instalar — **no necesitas Android Studio**.
 
@@ -21,25 +21,70 @@ Tres piezas que trabajan juntas, todo en local y en un entorno aislado (ningún 
 README.md · LICENSE
 ```
 
-## 🧩 Componentes
+---
 
-### 🛰️ AlienProbe — raíz del repo (plataforma de análisis dinámico)
+## 🛰️ AlienProbe — plataforma de análisis dinámico
 
-Interfaz web local (Python + Flask) que orquesta **adb + Frida**. Fija Frida 16.x y descarga `adb` de forma automática.
+Interfaz web local (Python + Flask) que orquesta **adb + Frida** desde el navegador. No necesitas memorizar comandos: cada módulo es guiado, con ayuda contextual, tooltips y explicaciones paso a paso.
 
-* **Qué hace:** evasión de controles (root / anti-Frida / SSL pinning), extracción de SharedPreferences y SQLite, prueba de componentes exportados e IDOR, captura de pantalla, lectura de tráfico OkHttp, un **Cazador** de secretos estático (jadx) y un **Informe** exportable a HTML/PDF con mapeo OWASP MASVS.
-* **Requisitos:** Python 3.11 / 3.12 y un emulador **Genymotion x86_64 con root** (los ARM como Nox/LDPlayer no sirven con Frida).
-
-**Ejecución**
+**Arranca sola:** la primera vez crea su entorno virtual, instala dependencias, **descarga `adb`** (platform-tools oficial de Google) si no lo tienes y **fija Frida 16.x** de forma automática. Si copias la carpeta a otra PC, `run.py` **repara el entorno** por sí mismo.
 
 ```
 python run.py
 # Abre la interfaz en http://127.0.0.1:8765
 ```
 
-La primera vez crea su entorno virtual e instala las dependencias solo.
+**Requisitos:** Python 3.11 / 3.12 y un emulador **Genymotion x86_64 con root** (los ARM como Nox/LDPlayer no funcionan bien con Frida).
 
-### 📱 Alien-Bank — `/APP` (APK · CTF · ya compilada)
+### Panel de control (barra lateral)
+
+Siempre visible, es donde preparas la sesión:
+
+* **adb** — detecta o fija la ruta del ejecutable y comprueba que responde.
+* **Dispositivo** — refresca la lista, **auto-detecta** emuladores por sus puertos típicos o conecta manualmente por `host:port`.
+* **App objetivo** — lista las apps instaladas (con filtro), **instala un APK** desde tu disco y selecciona el paquete a analizar.
+* **Barra de estado** — chips en vivo de `adb · device · root · frida · target · modo` para saber de un vistazo si todo está listo.
+
+### Módulos (pestañas)
+
+| Módulo | Qué hace |
+|---|---|
+| 🔍 **Recon** | Huella de la app: versión, `debuggable`, uid, permisos y modo de acceso (root / no-root). El punto de partida. |
+| 🧩 **Componentes** | Lista activities, servicios y receivers, y **resalta los exportados** (la superficie de ataque). |
+| 💾 **Almacenamiento** | Extrae **SharedPreferences + SQLite** (con WAL) y **escanea secretos** en claro; los muestra en un panel de hallazgos. |
+| 🎯 **Launch / IDOR** | Lanza activities con **extras arbitrarios** para probar acceso indebido (**IDOR**) y componentes exportados sin login. |
+| 📸 **Captura** | Screenshot del dispositivo — demuestra la falta de `FLAG_SECURE`. |
+| 📜 **Logcat** | Logs de la app en vivo para seguir su comportamiento. |
+| ⚡ **Frida** | **29 presets** de instrumentación *data-driven*: bypass de root, **SSL unpinning**, anti-Frida off, combo banca, **lector de red** (OkHttp), trazas y más — en modo **spawn** o **attach**. |
+| 🕵️ **Cazador** | Análisis **estático con jadx**: busca claves, secretos y flags dentro del APK. Presets `quick / alien / creds / custom`, contexto por líneas y **decodificador** de assets ofuscados. Instala jadx solo y te pide el APK (o usa el que extrajiste). |
+| ⚡ **ADB** | **Consola ADB gráfica + administrador de apps** (ver abajo). |
+| 📋 **Informe** | **Ledger acumulativo** de hallazgos con severidad, cobertura **OWASP MASVS / CWE** y recomendaciones. Exporta a **HTML / PDF**. |
+| 🔌 **Cómo conectar** | Asistente para conectar Genymotion, Nox, AVD o un dispositivo físico. |
+
+### ⚡ Módulo ADB — consola gráfica + administrador de apps
+
+Habla con el dispositivo por ADB sin aprenderte los comandos. Dos bloques guiados:
+
+**Paso 1 · Consola de comandos.** Ejecuta comandos ADB desde un catálogo organizado en **Básicas / Avanzadas / Especiales** (`devices`, `getprop`, `pm list packages`, `dumpsys`, `ps`, `ip addr`, `settings`, `input keyevent`, `su`, `reboot`…) o escribe el tuyo a mano. La respuesta del dispositivo aparece al instante.
+
+**Paso 2 · Administrador de apps.** Lista las apps instaladas (con filtro; solo de usuario `-3` o también las del sistema) y, por cada una, botones de acción:
+
+* ⤓ **Extraer APK** — `pm path` + `adb pull` del `base.apk`; lo guarda en el PC y te da el enlace de descarga.
+* 📋 **Info** — versión, permisos y rutas de la app.
+* ▶ **Abrir** — lanza la app en el dispositivo.
+* ⏹ **Force-stop** — la cierra por completo.
+* 🧹 **Borrar datos** — la deja como recién instalada. *(destructivo, pide confirmación)*
+* 🗑 **Desinstalar** — la quita del dispositivo. *(destructivo, pide confirmación)*
+
+> El APK extraído se puede analizar directo en el **Cazador** o subir a MobSF.
+
+### Cómo funciona por dentro
+
+AlienProbe es una **SPA** (`index.html`) servida por un backend **Flask** (`gui.py`) que envuelve un núcleo (`dynadb.py` + `core/`) sobre `adb` y los *bindings* de **Frida**. Los presets de instrumentación viven en `presets.json` (editables), los scripts de Frida en `frida_scripts/`, y la ayuda didáctica en `ui_help.json`. Todo corre en `127.0.0.1` — nada sale de tu equipo.
+
+---
+
+## 📱 Alien-Bank — `/APP` (APK · CTF · ya compilada)
 
 App Android de banca (`com.taller.bancoalien`) con **11 vulnerabilidades didácticas**, cada una mapeada a OWASP MASVS y a un CWE. Trae un **CTF Tracker** interno con puntaje (220 pts) y un material que se desbloquea al resolver el reto.
 
@@ -55,7 +100,7 @@ App Android de banca (`com.taller.bancoalien`) con **11 vulnerabilidades didáct
 adb install APP/Alien-Bank.apk
 ```
 
-### 🌐 ServidorAPI — `/ServidorAPI` (API simulada · módulo de red)
+## 🌐 ServidorAPI — `/ServidorAPI` (API simulada · módulo de red)
 
 Servidor Flask local con **certificado fijo** que expone dos endpoints para el módulo de red (flags F10/F11):
 
@@ -94,7 +139,7 @@ python run_server.py
 ## 🎯 El reto
 
 * **11 flags** con formato `ALIEN{...}`, repartidas por dificultad (Nivel 1 a 3).
-* **220 puntos** en total; la última flag desbloquea el material del taller.
+* **220 puntos** en total; solo al capturar **todas** las flags se desbloquea el material del taller.
 * Cobertura OWASP MASVS: STORAGE, CRYPTO, AUTH, NETWORK, PLATFORM, CODE y RESILIENCE.
 * Al completarlo desbloqueas la **Guía PRO**, con todas las técnicas, comandos y el solucionario.
 
